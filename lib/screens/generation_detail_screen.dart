@@ -8,7 +8,7 @@ class GenerationDetailScreen extends StatelessWidget {
   const GenerationDetailScreen({super.key, required this.generationId});
 
   String _sprinteUrl(int id) =>
-    'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/$id.png';
+    'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/$id.png'; //para los sprites
 
 
   @override
@@ -71,7 +71,7 @@ class GenerationDetailScreen extends StatelessWidget {
   }
 }
 
-//_______________________________ NUEVA CLASE ____________________________
+//_______________________________ NUEVA CLASE: cartas de cada pokemon ____________________________
 class _PokemonCard extends StatelessWidget{
 
   final int id;
@@ -94,66 +94,103 @@ class _PokemonCard extends StatelessWidget{
     return Material(
       color: colorScheme.onPrimary,
       borderRadius: BorderRadius.circular(16),
-      elevation: 4,
+      elevation: 3,
+      clipBehavior: Clip.antiAlias, //se agrego
       child: InkWell(
         borderRadius:  BorderRadius.circular(16),
         onTap: onTap,
-        child: Padding(
-          padding:const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                '#${id.toString().padLeft(3, '0')}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.primary,
-                ),
-              ),
-
-              const SizedBox(height: 2),
-              Text(
-                name[0].toUpperCase() + name.substring(1),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-
-              const SizedBox(height: 4),
-              Expanded(
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, progress){
-                    if(progress == null) return child;
-                    
-                    return const Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      
-                      ),
-                    );
-                  },
-
-                  errorBuilder: (context, error, stackTrace) => 
-                    Icon(Icons.catching_pokemon, color: colorScheme.secondary),
-
-                )
-              ),
-            ],
+        child: Container(
+          decoration:  BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: colorScheme.primary.withOpacity(0.10),
+              width: 1.2,
+            ),
           ),
+
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // __________ numero con la pokebola en linea _________
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.catching_pokemon,
+                      size: 12,
+                      color: colorScheme.primary.withOpacity(0.55)
+                    ),
+
+                    const SizedBox(width: 4),
+                    Text(
+                      '#${id.toString().padLeft(3, '0')}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+
+                
+                const SizedBox(height: 2),
+                Text(
+                  name[0].toUpperCase() + name.substring(1),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+
+                //Imagen del pokemon de c/generacion y plataforma circular
+                const SizedBox(height: 4),
+                Expanded(
+                  child: Center(
+                    child: Container(
+                      // _______________ Circulo "plataforma" detras del sprite __________
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: colorScheme.secondaryContainer.withOpacity(0.35),
+                      ),
+
+                      // Pokemon sprite 
+                      padding: const EdgeInsets.all(6), //nuevo agregado
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, progress){
+                          if(progress == null) return child;
+                    
+                          return const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                      
+                            ),
+                          );
+                        },
+
+                        errorBuilder: (context, error, stackTrace) => 
+                          Icon(Icons.catching_pokemon, color: colorScheme.secondary),
+
+                      ),
+                    ),
+                  ),
+                  
+                ),
+              ],
+            ),
+          ), 
         ),
       ),
-
-
     );
   }
 

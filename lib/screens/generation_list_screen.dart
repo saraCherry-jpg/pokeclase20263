@@ -11,6 +11,12 @@ import 'package:provider/provider.dart';
 class GenerationListScreen extends StatelessWidget {
   const GenerationListScreen({super.key});
 
+  // Numerales romanos para las generaciones (I a IX por ahora)
+  static const List<String> _romanNumerals = [
+    'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'
+  ];
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold( //es lo del mapeo
@@ -32,17 +38,38 @@ class GenerationListScreen extends StatelessWidget {
 
           }else{
             final generationListResponse = GenerationListResponse.fromJson(json.decode(snapshot.data!.body));
-            return ListView.separated(
+            return ListView.separated( //Formato de lista 
               padding: const EdgeInsets.all(12),
               itemCount: generationListResponse.results.length,
               separatorBuilder: (context, index) => const SizedBox(height: 8,),
               itemBuilder:(context, index){
 
                 final generation = generationListResponse.results[index];
+                final roman = index < _romanNumerals.length ? _romanNumerals[index] : '${index + 1}'; //numeros romanos
+
+
                 return Card(
                   margin: EdgeInsets.zero,
-                  child: ListTile(
-                    title: Text(generation.name),
+                  child: ListTile( //Apartir de aqui se hicieron los cambios 
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    leading: const Icon( //Icono de la POkebola 
+                      Icons.catching_pokemon,
+                      size: 32,
+                    ),
+                    title: Text(
+                      'generation $roman',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16
+                      ),
+                    ),
+
+                    subtitle: Text(
+                      'generation ${index + 1}', //Aqui se numera las generaciones pokemon con numero decimal
+                      style: const TextStyle(fontSize: 13),
+                    ),
+
+                    trailing: const Icon(Icons.chevron_right), //termina lo que se llego agregar:
                     onTap: (){
                       Navigator.push(
                         context,
