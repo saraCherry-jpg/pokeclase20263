@@ -5,7 +5,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 //import 'package:flutter/widgets.dart';
 import 'package:pokeclase20263/providers/poke_api_provider.dart';
+import 'package:pokeclase20263/screens/dashboard_screen.dart';
 import 'package:pokeclase20263/screens/generation_list_screen.dart';
+import 'package:pokeclase20263/screens/auth_screen.dart';
 import 'package:provider/provider.dart';
 
 void main() => runApp(const AppState());
@@ -16,9 +18,14 @@ class AppState extends StatelessWidget{
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [
+      providers: [ //hace la instancia de la clase
         ChangeNotifierProvider(
           create: (_) => PokeApiProvider(),
+          lazy: false,
+          ),
+
+          ChangeNotifierProvider(
+          create: (_) => AuthProvider(), //inicio de sesión
           lazy: false,
           )
       ],
@@ -72,7 +79,10 @@ class MyApp extends StatelessWidget{
           foregroundColor: _KDark
         )
       ),
-      home: const GenerationListScreen(), //llama o instancia una clase (solo era el punto xd)
+      home: const AuthScreen(),  //GenerationListScreen(), //llama o instancia una clase (solo era el punto xd) INICIA
+      routes: {
+        '/dashboard':(context) => const DashboardScreen()
+      },
     );
 
   }
