@@ -30,7 +30,61 @@ class PokeApiProvider extends ChangeNotifier {
 
   }
 
+
+
+   //_______________________ Metodo para ver el Tamagotchi (CONSULTAS) ___________________
+  final String _tamagotchiBaseUrl = 'BackPokemon.somee.com'; //Es donde se encuentra los endpoints
+
+  Future<http.Response> getTamagotchi(String token) async {
+    final url = Uri.http(_tamagotchiBaseUrl, '/api/tamagotchi'); //es el endpoint
+    final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
+    return response;
+  }
+
+
+  Future<http.Response> getTamagotchiById(int id, String token) async {
+    final url = Uri.http(_tamagotchiBaseUrl, '/api/tamagotchi/$id');
+    final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
+    return response;
+  }
+
+
+  Future<http.Response> adoptarTamagotchi(int idPokemonUser, String token) async {
+    final url = Uri.http(_tamagotchiBaseUrl, '/api/tamagotchi');
+    final response = await http.post(
+      url,
+      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+      body: jsonEncode({'idPokemonUser': idPokemonUser}) 
+    );
+    return response;
+  }
+
+
+  Future<http.Response> realizarActividadTamagotchi(int id, String tipo, String token) async {
+    final url = Uri.http(_tamagotchiBaseUrl, '/api/tamagotchi/$id/actividad');
+    final response = await http.post(
+      url,
+      headers: {'Authorization': 'Bearer $token','Content-Type': 'application/json'},
+      body: jsonEncode({'tipo': tipo})
+    );
+    return response;
+  }
+
+
+
+  Future<http.Response> liberarTamagotchi(int id, String token) async {
+    final url = Uri.http(_tamagotchiBaseUrl, '/api/tamagotchi/$id');
+    final response = await http.delete(url, headers: {'Authorization': 'Bearer $token'});
+    return response;
+
+  }
+
+
+  
 }
+  //getTamagotchis(String token) {}
+
+
 
 
 //_______________________ Metodo para ver el credencial de usuario ___________________
@@ -38,6 +92,7 @@ class AuthProvider extends ChangeNotifier {
   String? token;
   bool cargando = false;
   String? error;
+
 
   final String _baseUrl = 'BackPokemon.somee.com'; //es el servidor donde esta subido el backend
 
@@ -120,10 +175,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-
-
-
 }
 
 
-  //_______________________ Metodo para ver el Tamagotchi ___________________
+ 

@@ -101,7 +101,7 @@ class DashboardScreen extends StatelessWidget {
                         subtitulo: 'Cambia Pokemón con otros',
                         onTap: () => _ir(
                           context,
-                          const ProximamenteScreen(
+                          const ProximamenteScreen( //Es otra vista que esta en widgets (carpeta) //Instancia del la clase
                             titulo: 'Intercambio',
                             icono: Icons.swap_horiz_rounded
                           ),
@@ -115,7 +115,7 @@ class DashboardScreen extends StatelessWidget {
                         subtitulo: 'Tu Colección',
                         onTap: () => _ir(
                           context,
-                          const ProximamenteScreen(
+                          const ProximamenteScreen( //Instancia de la clase proximemente en Widgets
                             titulo: 'Capturados',
                             icono: Icons.catching_pokemon
                           ),

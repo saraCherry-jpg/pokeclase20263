@@ -4,10 +4,12 @@ Se muestra una lista de los minijuegos que tenemos disponibles:
 a) Captura
 b) Batalla
 c) Tamagotchi
+d) Centro Pokemon
 
  */
 
 import 'package:flutter/material.dart';
+import 'package:pokeclase20263/screens/tamagotchi_screen.dart';
 import 'package:pokeclase20263/widgets/menu_card.dart';
 
 
@@ -32,7 +34,7 @@ class MinijuegoScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Minijuego')),
+      appBar: AppBar(title: const Text('Minijuegos')),
       body: Container(
         width: double.infinity,
         decoration: const BoxDecoration(
@@ -64,9 +66,9 @@ class MinijuegoScreen extends StatelessWidget {
               MenuCard(
                 horizontal: true,
                 icono: Icons.view_in_ar_rounded,
-                titulo: 'Captura AR',
+                titulo: 'Captura',
                 subtitulo: 'Atrapa los pokemones en relidad aumentada',
-                onTap: () => _ir(context, 'Captura AR', Icons.view_in_ar_rounded)
+                onTap: () => _ir(context, 'Captura', Icons.view_in_ar_rounded)
               ),
 
               //_____________ OPCION 2: Batalla __________________
@@ -76,7 +78,7 @@ class MinijuegoScreen extends StatelessWidget {
                 icono: Icons.flash_on_rounded,
                 titulo: 'Batalla',
                 subtitulo: 'Enfrenta a otros entrenadores',
-                onTap: () => _ir(context, 'Batalla', Icons.flash_on_rounded)
+                onTap: () => _ir(context, 'Batalla', Icons.flash_on_rounded) //Modificar
               ),
 
               // _______________ OPCION 3: Tamagotchi ________________
@@ -86,8 +88,32 @@ class MinijuegoScreen extends StatelessWidget {
                 icono: Icons.pets_rounded,
                 titulo: 'Tamagotchi',
                 subtitulo: 'Cuida a tu pokemon',
-                onTap: () => _ir(context, 'Tamagotchi', Icons.pets_rounded)
+                //onTap: () => _ir(context, 'Tamagotchi', Icons.pets_rounded)
+                //Parte que enruta el frame/ screen de los minijuegos 
+
+                /*
+                Ojo: Marca error correctamente, porque aun no hay captura 
+                 */
+
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const TamagotchiScreen() )); //Navegación de la vista Tamagotchi (Main Tamagotchi)
+                  //PD: Más Delante se 
+                },
               ),
+
+
+              // _____________________ OPCION 4: Centro Pokemon ________________
+              const SizedBox(height: 16),
+              MenuCard(
+                horizontal: true,
+                icono: Icons.local_hospital_rounded,
+                titulo: 'Centro Pokemon',
+                subtitulo: 'Cura a tu equipo y recupera sus fuerzas',
+                onTap: () => _ir(context, 'Centro Pokemon', Icons.local_hospital_rounded)
+              ),
+
+
+
             ],
           ),
 
