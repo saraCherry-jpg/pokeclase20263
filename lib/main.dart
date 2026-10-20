@@ -1,14 +1,16 @@
 /*
 ES LA VISTA DE LA INTERFAZ DE LA POKEAPI
 */
-import 'package:flutter/cupertino.dart';
+import 'package:pokeclase20263/services/center_api.dart';
 import 'package:flutter/material.dart';
 //import 'package:flutter/widgets.dart';
 import 'package:pokeclase20263/providers/poke_api_provider.dart';
 import 'package:pokeclase20263/screens/dashboard_screen.dart';
-import 'package:pokeclase20263/screens/generation_list_screen.dart';
+
 import 'package:pokeclase20263/screens/auth_screen.dart';
 import 'package:provider/provider.dart';
+
+final appNavigatorKey = GlobalKey<NavigatorState>();
 
 void main() => runApp(const AppState());
 
@@ -47,7 +49,12 @@ class MyApp extends StatelessWidget{
 
   @override
   Widget build(BuildContext context) {
+    CenterApi.instance.onUnauthorized = () {
+      context.read<AuthProvider>().token = null;
+      appNavigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (_) => false);
+    };
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Poke clase',
       theme:  ThemeData(
@@ -81,6 +88,7 @@ class MyApp extends StatelessWidget{
       ),
       home: const AuthScreen(),  //GenerationListScreen(), //llama o instancia una clase (solo era el punto xd) INICIA
       routes: {
+        '/login': (_) => const AuthScreen(),
         '/dashboard':(context) => const DashboardScreen()
       },
     );

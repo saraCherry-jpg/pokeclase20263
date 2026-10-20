@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:pokeclase20263/services/center_api.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:pokeclase20263/models/auth_response.dart';
@@ -114,6 +115,8 @@ class AuthProvider extends ChangeNotifier {
       if (response.statusCode == 200){
         final loginResponse = LoginResponse.fromJson(jsonDecode(response.body));
         token = loginResponse.token;
+        CenterApi.instance.token = token;
+        CenterApi.instance.userName = userName;
         cargando = false;
         notifyListeners();
         return true;

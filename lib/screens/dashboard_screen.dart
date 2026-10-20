@@ -13,9 +13,13 @@ e) minijuegos (capturas, batalla y Tamagotchi) --> c/u tiene sus vistas
  */
 
 import 'package:flutter/material.dart';
+import 'package:pokeclase20263/providers/poke_api_provider.dart';
+import 'package:pokeclase20263/services/center_api.dart';
+import 'package:provider/provider.dart';
 
 //los demas importados en el archivo de es intanciados de otros archivos...
 import 'package:pokeclase20263/screens/auth_screen.dart';
+import 'package:pokeclase20263/screens/pokemon_center_screen.dart';
 import 'package:pokeclase20263/screens/generation_list_screen.dart';
 import 'package:pokeclase20263/screens/minijuego_screen.dart';
 import 'package:pokeclase20263/widgets/menu_card.dart';
@@ -46,10 +50,16 @@ class DashboardScreen extends StatelessWidget {
           IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout_rounded),
-            onPressed: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const AuthScreen()),
-            ),
+            onPressed: () {
+              context.read<AuthProvider>().token = null;
+              CenterApi.instance.token = null;
+              CenterApi.instance.userName = null;
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const AuthScreen()),
+                (_) => false,
+              );
+            },
           ),
         ],
       ),
@@ -94,6 +104,12 @@ class DashboardScreen extends StatelessWidget {
                     childAspectRatio: 0.9,
 
                     children: [
+                      MenuCard(
+                        icono: Icons.local_hospital_rounded,
+                        titulo: 'Poke Center',
+                        subtitulo: 'Cura e intercambia tus Pokémon',
+                        onTap: () => _ir(context, const PokemonCenterScreen()),
+                      ),
                       //Intercambio
                       MenuCard(
                         icono: Icons.swap_horiz_rounded,
