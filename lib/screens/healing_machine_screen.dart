@@ -1,4 +1,5 @@
 import 'package:pokeclase20263/services/center_api.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -220,35 +221,6 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
             fit: BoxFit.cover,
           ),
           _machine(),
-          Positioned(
-            top: screenHeight * 0.12,
-            left: 16,
-            right: 16,
-            child: Column(
-              children: [
-                if (_loading || _healing) const LinearProgressIndicator(),
-                const Text(
-                  'La máquina cura todos tus Pokémon elegibles.',
-                  style: TextStyle(color: Colors.white),
-                  textAlign: TextAlign.center,
-                ),
-                if (_error != null)
-                  Text(_error!, style: const TextStyle(color: Colors.white)),
-                if (_error != null || (!_loading && available.isEmpty))
-                  TextButton(
-                    onPressed: _healing
-                        ? null
-                        : () {
-                            setState(() => _loading = true);
-                            _load();
-                          },
-                    child: Text(
-                      _error == null ? 'Sin Pokémon. Actualizar' : 'Actualizar',
-                    ),
-                  ),
-              ],
-            ),
-          ),
           SafeArea(
             child: Align(
               alignment: Alignment.topLeft,
@@ -263,58 +235,110 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
               widthFactor: 1,
               height: screenHeight * 0.38,
               padding: const EdgeInsets.all(16),
-              child: Scrollbar(
-                controller: _scrollController,
-                thumbVisibility: true,
-                trackVisibility: true,
-                thickness: 10,
-                radius: const Radius.circular(12),
-                child: GridView.builder(
-                  key: const Key('healing-pokemon-grid'),
-                  controller: _scrollController,
-                  padding: const EdgeInsets.only(right: 24),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: screenWidth < 360 ? 3 : 4,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.85,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_loading || _healing) const LinearProgressIndicator(),
+                  const Text(
+                    'La máquina cura todos tus Pokémon elegibles.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white),
                   ),
-                  itemCount: available
-                      .where((id) => !_slots.contains(id))
-                      .length,
-                  itemBuilder: (context, index) {
-                    final id = available
-                        .where((item) => !_slots.contains(item))
-                        .skip(index)
-                        .first;
-                    final tile = Column(
-                      children: [
-                        Expanded(
-                          child: AspectRatio(aspectRatio: 1, child: _ball(id)),
+                  if (_error != null)
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white),
                         ),
-                        Text(
-                          '${_pokemon[id]?['nombre'] ?? '#$id'}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    );
-                    return LongPressDraggable<int>(
-                      key: ValueKey('healing-pokemon-$id'),
-                      data: id,
-                      maxSimultaneousDrags: _healing ? 0 : 1,
-                      feedback: SizedBox(
-                        width: 64,
-                        height: 64,
-                        child: _ball(id),
                       ),
-                      childWhenDragging: Opacity(opacity: 0.25, child: tile),
-                      child: tile,
-                    );
-                  },
-                ),
+                    ),
+                  if (!_loading && _error == null && available.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Text(
+                        'No tienes Pokémon para curar.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  if (_error != null || (!_loading && available.isEmpty))
+                    TextButton(
+                      onPressed: _healing || _loading
+                          ? null
+                          : () {
+                              setState(() => _loading = true);
+                              _load();
+                            },
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Actualizar'),
+                    ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Scrollbar(
+                      controller: _scrollController,
+                      thumbVisibility: true,
+                      trackVisibility: true,
+                      thickness: 10,
+                      radius: const Radius.circular(12),
+                      child: GridView.builder(
+                        key: const Key('healing-pokemon-grid'),
+                        controller: _scrollController,
+                        padding: const EdgeInsets.only(right: 24),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: screenWidth < 360 ? 3 : 4,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.85,
+                        ),
+                        itemCount: available
+                            .where((id) => !_slots.contains(id))
+                            .length,
+                        itemBuilder: (context, index) {
+                          final id = available
+                              .where((item) => !_slots.contains(item))
+                              .skip(index)
+                              .first;
+                          final tile = Column(
+                            children: [
+                              Expanded(
+                                child: AspectRatio(
+                                  aspectRatio: 1,
+                                  child: _ball(id),
+                                ),
+                              ),
+                              Text(
+                                '${_pokemon[id]?['nombre'] ?? '#$id'}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          );
+                          return LongPressDraggable<int>(
+                            key: ValueKey('healing-pokemon-$id'),
+                            data: id,
+                            maxSimultaneousDrags: _healing ? 0 : 1,
+                            feedback: SizedBox(
+                              width: 64,
+                              height: 64,
+                              child: _ball(id),
+                            ),
+                            childWhenDragging: Opacity(
+                              opacity: 0.25,
+                              child: tile,
+                            ),
+                            child: tile,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

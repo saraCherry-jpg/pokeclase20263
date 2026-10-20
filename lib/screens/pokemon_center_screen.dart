@@ -89,6 +89,25 @@ class _PokemonCenterScreenState extends State<PokemonCenterScreen> {
     super.dispose();
   }
 
+  Widget _destinationButton(String label, Widget screen) => ElevatedButton(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: _panelColor,
+      foregroundColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    onPressed: () =>
+        Navigator.push(context, MaterialPageRoute(builder: (_) => screen)),
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontFamily: 'NESFont', fontSize: 16),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -179,96 +198,49 @@ class _PokemonCenterScreenState extends State<PokemonCenterScreen> {
             bottom: screenHeight * 0.10,
             child: ResponsivePanel(
               widthFactor: 1,
-              height: 180,
+              height: (screenHeight * 0.30).clamp(180.0, 280.0),
               padding: const EdgeInsets.all(8),
-              child: Stack(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: _dialogueIndex == 0 ? 42 : 0,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.max,
-                      mainAxisAlignment: _dialogueIndex == 0
-                          ? MainAxisAlignment.center
-                          : MainAxisAlignment.start,
-                      children: [
-                        Text(
-                          _currentMessage.substring(0, _visibleCharacters),
-                          key: const Key('center-dialogue'),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontFamily: 'NESFont',
-                            fontSize: 12,
-                          ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        _currentMessage.substring(0, _visibleCharacters),
+                        key: const Key('center-dialogue'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'NESFont',
+                          fontSize: (screenWidth * 0.035).clamp(12.0, 20.0),
                         ),
-                        if (_dialogueIndex == 1) ...[
-                          const SizedBox(height: 10),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _panelColor,
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const HealingMachineScreen(),
-                                ),
-                              );
-                            },
-                            child: const Text(
-                              'IR A LA MAQUINA DE CURACION',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontFamily: 'NESFont',
-                                fontSize: 8,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _panelColor,
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const PokemonSelectionScreen(),
-                                ),
-                              );
-                            },
-                            child: const Text(
-                              'IR A LA MAQUINA DE INTERCAMBIO',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontFamily: 'NESFont',
-                                fontSize: 8,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
-                  if (_dialogueIndex == 0)
-                    Positioned(
-                      left: 0,
-                      bottom: 0,
-                      child: ElevatedButton(
-                        onPressed: _showNextDialogue,
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(36, 30),
-                          padding: EdgeInsets.zero,
-                          backgroundColor: _panelColor,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('>>'),
+                  if (_dialogueIndex == 1) ...[
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: _destinationButton(
+                        'IR A LA MAQUINA DE CURACION',
+                        const HealingMachineScreen(),
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: _destinationButton(
+                        'IR A LA MAQUINA DE INTERCAMBIO',
+                        const PokemonSelectionScreen(),
+                      ),
+                    ),
+                  ] else
+                    ElevatedButton(
+                      onPressed: _showNextDialogue,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _panelColor,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(40),
+                      ),
+                      child: const Text('>>'),
                     ),
                 ],
               ),
