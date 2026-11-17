@@ -13,9 +13,13 @@ e) minijuegos (capturas, batalla y Tamagotchi) --> c/u tiene sus vistas
  */
 
 import 'package:flutter/material.dart';
+import 'package:pokeclase20263/providers/poke_api_provider.dart';
+import 'package:pokeclase20263/services/center_api.dart';
+import 'package:provider/provider.dart';
 
 //los demas importados en el archivo de es intanciados de otros archivos...
 import 'package:pokeclase20263/screens/auth_screen.dart';
+import 'package:pokeclase20263/screens/pokemon_center_screen.dart';
 import 'package:pokeclase20263/screens/generation_list_screen.dart';
 import 'package:pokeclase20263/screens/minijuego_screen.dart';
 import 'package:pokeclase20263/widgets/menu_card.dart';
@@ -46,10 +50,16 @@ class DashboardScreen extends StatelessWidget {
           IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout_rounded),
-            onPressed: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const AuthScreen()),
-            ),
+            onPressed: () {
+              context.read<AuthProvider>().token = null;
+              CenterApi.instance.token = null;
+              CenterApi.instance.userName = null;
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const AuthScreen()),
+                (_) => false,
+              );
+            },
           ),
         ],
       ),
@@ -87,27 +97,20 @@ class DashboardScreen extends StatelessWidget {
 
                 const SizedBox(height: 24),
                 Expanded(
-                  child: GridView.count(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => GridView.count(
                     crossAxisCount: 2,
                     mainAxisSpacing: 16,
                     crossAxisSpacing: 16,
-                    childAspectRatio: 0.9,
+                    mainAxisExtent: ((constraints.maxHeight - 16) / 2).clamp(200.0, 300.0),
 
                     children: [
-                      //Intercambio
                       MenuCard(
-                        icono: Icons.swap_horiz_rounded,
-                        titulo: 'Intercambio',
-                        subtitulo: 'Cambia Pokemón con otros',
-                        onTap: () => _ir(
-                          context,
-                          const ProximamenteScreen( //Es otra vista que esta en widgets (carpeta) //Instancia del la clase
-                            titulo: 'Intercambio',
-                            icono: Icons.swap_horiz_rounded
-                          ),
-                        ),
+                        icono: Icons.local_hospital_rounded,
+                        titulo: 'Poke Center',
+                        subtitulo: 'Cura e intercambia tus Pokémon',
+                        onTap: () => _ir(context, const PokemonCenterScreen()),
                       ),
-
                       //Capturados
                       MenuCard(
                         icono: Icons.catching_pokemon,
@@ -144,6 +147,7 @@ class DashboardScreen extends StatelessWidget {
 
                     ],
 
+                    ),
                   ),
                 ),
 

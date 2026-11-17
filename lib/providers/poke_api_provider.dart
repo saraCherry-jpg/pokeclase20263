@@ -1,8 +1,8 @@
 import 'dart:convert';
+import 'package:pokeclase20263/services/center_api.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:pokeclase20263/models/auth_response.dart';
-import 'package:pokeclase20263/models/pokemon_detail_response.dart';
 
 class PokeApiProvider extends ChangeNotifier {
   final String _baseUrl = 'pokeapi.co';
@@ -33,24 +33,23 @@ class PokeApiProvider extends ChangeNotifier {
 
 
    //_______________________ Metodo para ver el Tamagotchi (CONSULTAS) ___________________
-  final String _tamagotchiBaseUrl = 'BackPokemon.somee.com'; //Es donde se encuentra los endpoints
 
   Future<http.Response> getTamagotchi(String token) async {
-    final url = Uri.http(_tamagotchiBaseUrl, '/api/tamagotchi'); //es el endpoint
+    final url = CenterApi.instance.uri('/api/tamagotchi'); //es el endpoint
     final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
     return response;
   }
 
 
   Future<http.Response> getTamagotchiById(int id, String token) async {
-    final url = Uri.http(_tamagotchiBaseUrl, '/api/tamagotchi/$id');
+    final url = CenterApi.instance.uri('/api/tamagotchi/$id');
     final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
     return response;
   }
 
 
   Future<http.Response> adoptarTamagotchi(int idPokemonUser, String token) async {
-    final url = Uri.http(_tamagotchiBaseUrl, '/api/tamagotchi');
+    final url = CenterApi.instance.uri('/api/tamagotchi');
     final response = await http.post(
       url,
       headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
@@ -61,7 +60,7 @@ class PokeApiProvider extends ChangeNotifier {
 
 
   Future<http.Response> realizarActividadTamagotchi(int id, String tipo, String token) async {
-    final url = Uri.http(_tamagotchiBaseUrl, '/api/tamagotchi/$id/actividad');
+    final url = CenterApi.instance.uri('/api/tamagotchi/$id/actividad');
     final response = await http.post(
       url,
       headers: {'Authorization': 'Bearer $token','Content-Type': 'application/json'},
@@ -73,7 +72,7 @@ class PokeApiProvider extends ChangeNotifier {
 
 
   Future<http.Response> liberarTamagotchi(int id, String token) async {
-    final url = Uri.http(_tamagotchiBaseUrl, '/api/tamagotchi/$id');
+    final url = CenterApi.instance.uri('/api/tamagotchi/$id');
     final response = await http.delete(url, headers: {'Authorization': 'Bearer $token'});
     return response;
 
@@ -94,7 +93,6 @@ class AuthProvider extends ChangeNotifier {
   String? error;
 
 
-  final String _baseUrl = 'BackPokemon.somee.com'; //es el servidor donde esta subido el backend
 
   //_____________ Metodo para permitir el acceso ___________
   Future<bool> login(String userName, String password) async {
@@ -103,7 +101,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners(); //notifica
 
     try{
-      final url = Uri.http(_baseUrl, '/api/Auth/login'); //aqui es.. no es https
+      final url = CenterApi.instance.uri('/api/Auth/login');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -114,6 +112,8 @@ class AuthProvider extends ChangeNotifier {
       if (response.statusCode == 200){
         final loginResponse = LoginResponse.fromJson(jsonDecode(response.body));
         token = loginResponse.token;
+        CenterApi.instance.token = token;
+        CenterApi.instance.userName = userName;
         cargando = false;
         notifyListeners();
         return true;
@@ -142,7 +142,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try{
-      final url = Uri.http(_baseUrl, 'api/Auth/register');
+      final url = CenterApi.instance.uri('/api/Auth/register');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},

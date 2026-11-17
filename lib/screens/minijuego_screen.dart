@@ -9,6 +9,7 @@ d) Centro Pokemon
  */
 
 import 'package:flutter/material.dart';
+import 'package:pokeclase20263/screens/pokemon_center_screen.dart';
 import 'package:pokeclase20263/screens/tamagotchi_screen.dart';
 import 'package:pokeclase20263/widgets/menu_card.dart';
 
@@ -109,7 +110,8 @@ class MinijuegoScreen extends StatelessWidget {
                 icono: Icons.local_hospital_rounded,
                 titulo: 'Centro Pokemon',
                 subtitulo: 'Cura a tu equipo y recupera sus fuerzas',
-                onTap: () => _ir(context, 'Centro Pokemon', Icons.local_hospital_rounded)
+                onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const PokemonCenterScreen())),
               ),
 
 
