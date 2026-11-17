@@ -27,13 +27,32 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
     _load();
   }
 
+  bool _needsHealing(Map<String, dynamic> pokemon) {
+    if (pokemon['crianza'] is Map && pokemon['crianza']['vivo'] == false) {
+      return false;
+    }
+    final current = pokemon['vidaActual'];
+    final total = pokemon['vidaTotal'];
+    final status = pokemon['estado'];
+    if (current is! num || total is! num || total <= 0 || status == null) {
+      return false;
+    }
+    return current < total || status.toString().toLowerCase() != 'sano';
+  }
+
   Future<void> _load() async {
     try {
       final data = await (widget.api ?? CenterApi.instance).pokemon();
       if (!mounted) return;
       setState(() {
         _pokemon = {for (final p in data) p['id'] as int: p};
-        available = _pokemon.keys.toList();
+        available = data
+            .where(_needsHealing)
+            .map((p) => p['id'] as int)
+            .toList();
+        for (var slot = 0; slot < _slots.length; slot++) {
+          if (!available.contains(_slots[slot])) _slots[slot] = null;
+        }
         _loading = false;
         _error = null;
       });
@@ -59,7 +78,10 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
   }
 
   void _place(int slot, int id) {
-    if (_healing || _slots[slot] != null || _slots.contains(id)) {
+    if (_healing ||
+        !available.contains(id) ||
+        _slots[slot] != null ||
+        _slots.contains(id)) {
       return;
     }
     setState(() {
@@ -68,26 +90,55 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
     });
   }
 
+  Future<void> _animateHealingProgress() async {
+    for (final progress in [25, 50, 75]) {
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (!mounted || !_healing) return;
+      setState(() => _progress = progress);
+    }
+  }
+
   Future<void> _heal() async {
-    if (_healing || _loading) return;
+    final selected = _slots.whereType<int>().toList();
+    if (_healing || _loading || selected.isEmpty) return;
+    final api = widget.api ?? CenterApi.instance;
     setState(() {
       _healing = true;
       _progress = 0;
       _error = null;
     });
+    final animation = _animateHealingProgress();
+    var healed = 0;
+    final failures = <String>[];
     try {
-      final count = await (widget.api ?? CenterApi.instance).heal();
+      for (final id in selected) {
+        try {
+          await api.heal(id);
+          if (!mounted) return;
+          healed++;
+          setState(() {
+            _slots[_slots.indexOf(id)] = null;
+          });
+        } catch (e) {
+          if (!mounted) return;
+          failures.add("${_pokemon[id]?['nombre'] ?? '#$id'}: $e");
+          if (e is ApiException && (e.status == 401 || e.status == 0)) break;
+        }
+      }
+      await animation;
       if (!mounted) return;
-      setState(() {
-        _progress = 100;
-        _slots.fillRange(0, 6, null);
-      });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Pokémon actualizados: $count')));
+      setState(() => _progress = failures.isEmpty ? 100 : 0);
       await _load();
-    } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (!mounted) return;
+      if (failures.isNotEmpty) {
+        final refreshError = _error;
+        setState(() => _error = [...failures, ?refreshError].join('\n'));
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pokémon curados: $healed de ${selected.length}'),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _healing = false);
     }
@@ -97,6 +148,22 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
     label: '${_pokemon[id]?['nombre'] ?? 'Pokémon'} $id',
     child: CustomPaint(painter: PokeballPainter()),
   );
+
+  Widget _sprite(int id) {
+    final pokemon = _pokemon[id]!;
+    final url = pokemon['urlFrontal'] as String?;
+    return Image.network(
+      url != null && url.isNotEmpty
+          ? url
+          : 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemon['idPokemon']}.png',
+      key: ValueKey('healing-sprite-$id'),
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.none,
+      semanticLabel: '${pokemon['nombre'] ?? 'Pokémon'}',
+      errorBuilder: (_, error, stackTrace) =>
+          const Icon(Icons.catching_pokemon, color: Colors.white),
+    );
+  }
 
   Widget _machine() => LayoutBuilder(
     builder: (context, constraints) {
@@ -165,6 +232,7 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
                 key: ValueKey('healing-slot-$slot'),
                 onWillAcceptWithDetails: (details) =>
                     !_healing &&
+                    available.contains(details.data) &&
                     _slots[slot] == null &&
                     !_slots.contains(details.data),
                 onAcceptWithDetails: (details) => _place(slot, details.data),
@@ -188,7 +256,11 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
                     child: _slots[slot] == null
                         ? null
                         : Tooltip(
-                            message: 'Toca para devolver al panel',
+                            message:
+                                '${_pokemon[_slots[slot]]?['nombre'] ?? 'Pokémon'}'
+                                '\nVida: ${_pokemon[_slots[slot]]?['vidaActual']}/${_pokemon[_slots[slot]]?['vidaTotal']}'
+                                '\nEstado: ${_pokemon[_slots[slot]]?['estado']}'
+                                '\nToca para devolver al panel',
                             child: InkWell(
                               onTap: _healing
                                   ? null
@@ -240,7 +312,7 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
                 children: [
                   if (_loading || _healing) const LinearProgressIndicator(),
                   const Text(
-                    'La máquina cura todos tus Pokémon elegibles.',
+                    'Mantén presionado un Pokémon y arrástralo a la máquina.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.white),
                   ),
@@ -258,7 +330,7 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
                     const Padding(
                       padding: EdgeInsets.only(top: 12),
                       child: Text(
-                        'No tienes Pokémon para curar.',
+                        'Ningún Pokémon necesita curación.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white),
                       ),
@@ -268,7 +340,10 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
                       onPressed: _healing || _loading
                           ? null
                           : () {
-                              setState(() => _loading = true);
+                              setState(() {
+                                _loading = true;
+                                _error = null;
+                              });
                               _load();
                             },
                       style: TextButton.styleFrom(
@@ -292,7 +367,7 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
                           crossAxisCount: screenWidth < 360 ? 3 : 4,
                           mainAxisSpacing: 16,
                           crossAxisSpacing: 12,
-                          childAspectRatio: 0.85,
+                          mainAxisExtent: 180,
                         ),
                         itemCount: available
                             .where((id) => !_slots.contains(id))
@@ -307,14 +382,34 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
                               Expanded(
                                 child: AspectRatio(
                                   aspectRatio: 1,
-                                  child: _ball(id),
+                                  child: _sprite(id),
                                 ),
                               ),
                               Text(
                                 '${_pokemon[id]?['nombre'] ?? '#$id'}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Vida: ${_pokemon[id]?['vidaActual']}/${_pokemon[id]?['vidaTotal']}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                'Estado: ${_pokemon[id]?['estado']}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Color(0xFFE5D36D),
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
@@ -350,13 +445,10 @@ class _HealingMachineScreenState extends State<HealingMachineScreen> {
             child: Center(
               child: IconButton(
                 key: const Key('healing-machine-button'),
-                tooltip: _healing ? 'Curando…' : 'Curar todos los Pokémon',
+                tooltip: _healing ? 'Curando…' : 'Curar Pokémon seleccionados',
                 padding: EdgeInsets.zero,
                 onPressed:
-                    !_healing &&
-                        !_loading &&
-                        _error == null &&
-                        available.isNotEmpty
+                    !_healing && !_loading && _slots.any((id) => id != null)
                     ? _heal
                     : null,
                 icon: Image.asset(

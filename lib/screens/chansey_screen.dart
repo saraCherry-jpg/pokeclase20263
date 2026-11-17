@@ -110,7 +110,10 @@ class _ChanseyScreenState extends State<ChanseyScreen> {
             _showElectricEffect = _caughtBolts < 3;
             if (_showElectricEffect) {
               _electricEffectTimer = Timer(const Duration(milliseconds: 500), () {
-                _updateSafely(() => _showElectricEffect = false);
+                _updateSafely(() {
+                  _showElectricEffect = false;
+                  _activeLane = 1;
+                });
               });
             }
             if (_caughtBolts >= 3) {

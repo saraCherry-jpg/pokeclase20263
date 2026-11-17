@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:pokeclase20263/screens/pokemon_trade_screen.dart';
+import 'package:pokeclase20263/screens/pokemon_selection_screen.dart';
 import 'package:pokeclase20263/services/center_api.dart';
 import 'package:pokeclase20263/widgets/menu_button.dart';
 
 class BackendCenterScreen extends StatefulWidget {
   final bool trades;
+  final bool sentOnly;
   final CenterApi? api;
-  const BackendCenterScreen({super.key, required this.trades, this.api});
+  const BackendCenterScreen({
+    super.key,
+    required this.trades,
+    this.api,
+    this.sentOnly = false,
+  });
   @override
   State<BackendCenterScreen> createState() => _BackendCenterScreenState();
 }
 
 class _BackendCenterScreenState extends State<BackendCenterScreen> {
   late final api = widget.api ?? CenterApi.instance;
-  final search = TextEditingController();
-  List<Map<String, dynamic>> pokemon = [], trades = [], users = [];
+  List<Map<String, dynamic>> pokemon = [], trades = [];
   int? selectedPokemon;
-  String? selectedUser;
   String? error;
   bool busy = false;
 
@@ -25,24 +31,21 @@ class _BackendCenterScreenState extends State<BackendCenterScreen> {
     if (api.token != null) _run(_refresh);
   }
 
-  @override
-  void dispose() {
-    search.dispose();
-    super.dispose();
-  }
-
   Future<void> _refresh() async {
-    final collection = await api.pokemon(availableOnly: widget.trades);
-    if (!mounted) return;
-    setState(() {
-      pokemon = collection;
-      if (!pokemon.any((p) => p['id'] == selectedPokemon)) {
-        selectedPokemon = null;
-      }
-    });
     if (widget.trades) {
       final history = await api.trades();
-      if (mounted) setState(() => trades = history);
+      if (mounted) {
+        setState(
+          () => trades = history
+              .where(
+                (t) => t['role'] == (widget.sentOnly ? 'sent' : 'received'),
+              )
+              .toList(),
+        );
+      }
+    } else {
+      final collection = await api.pokemon();
+      if (mounted) setState(() => pokemon = collection);
     }
   }
 
@@ -77,33 +80,20 @@ class _BackendCenterScreenState extends State<BackendCenterScreen> {
         'El intercambio cambió. Revisa su estado actualizado.',
       );
     }
-    int? choice;
     if (action == 'accept') {
-      final available = await api.pokemon(availableOnly: true);
-      if (!mounted) return;
-      choice = await showDialog<int>(
-        context: context,
-        builder: (context) => SimpleDialog(
-          title: const Text('Elige tu Pokémon'),
-          children: [
-            if (available.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No tienes Pokémon disponibles.'),
-              ),
-            for (final p in available)
-              SimpleDialogOption(
-                onPressed: () => Navigator.pop(context, p['id']),
-                child: Text(
-                  '${p['nombre'] ?? 'Pokémon'} · ejemplar #${p['id']}',
-                ),
-              ),
-          ],
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PokemonSelectionScreen(
+            incomingTrade: Map<String, dynamic>.from(detail),
+            api: api,
+          ),
         ),
       );
-      if (choice == null) return;
+      if (mounted) await _refresh();
+      return;
     }
-    await api.action(trade['id'] as int, action, pokemonId: choice);
+    await api.action(trade['id'] as int, action);
     _message(
       action == 'accept'
           ? 'Aceptado. El creador debe confirmar.'
@@ -132,9 +122,15 @@ class _BackendCenterScreenState extends State<BackendCenterScreen> {
                 : Icons.radio_button_off,
           )
         : null,
-    onTap: widget.trades && !busy
+    onTap: busy
+        ? null
+        : widget.trades
         ? () => setState(() => selectedPokemon = p['id'] as int)
-        : null,
+        : () => _run(() async {
+            await api.heal(p['id'] as int);
+            _message('Pokémon curado');
+            await _refresh();
+          }),
   );
 
   Widget _trade(Map<String, dynamic> t) {
@@ -154,6 +150,12 @@ class _BackendCenterScreenState extends State<BackendCenterScreen> {
           Text(
             '${t['offeredPokemon']['nombre'] ?? 'Pokémon'} ↔ ${t['recipientPokemon']?['nombre'] ?? 'Por elegir'}',
           ),
+          if (accepted)
+            Text(
+              sent
+                  ? 'El destinatario aceptó. Falta tu confirmación.'
+                  : 'Aceptaste. Esperando confirmación del creador.',
+            ),
           Wrap(
             spacing: 8,
             children: [
@@ -164,12 +166,34 @@ class _BackendCenterScreenState extends State<BackendCenterScreen> {
                       : () => _run(() => _tradeAction(t, 'accept')),
                   child: const Text('Aceptar'),
                 ),
-              if (accepted && sent)
+              if (sent && (pending || accepted))
                 FilledButton(
                   onPressed: busy
                       ? null
-                      : () => _run(() => _tradeAction(t, 'confirm')),
-                  child: const Text('Confirmar'),
+                      : () => _run(() async {
+                          final detail = await api.detail(t['id'] as int);
+                          if (!mounted) return;
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PokemonTradeScreen(
+                                outgoingTrade: Map<String, dynamic>.from(
+                                  detail,
+                                ),
+                                selectedPokemonIds: [
+                                  detail['offeredPokemon']['id'] as int,
+                                ],
+                                api: api,
+                              ),
+                            ),
+                          );
+                          if (mounted) await _refresh();
+                        }),
+                  child: Text(
+                    accepted
+                        ? 'Revisar y confirmar en máquina'
+                        : 'Ver en máquina',
+                  ),
                 ),
               if (pending || accepted)
                 TextButton(
@@ -189,7 +213,13 @@ class _BackendCenterScreenState extends State<BackendCenterScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(widget.trades ? 'Intercambios' : 'Curar Pokémon'),
+      title: Text(
+        widget.trades
+            ? (widget.sentOnly
+                  ? 'Intercambios enviados'
+                  : 'Invitaciones recibidas')
+            : 'Curar Pokémon',
+      ),
       actions: [
         IconButton(
           tooltip: 'Actualizar',
@@ -222,94 +252,28 @@ class _BackendCenterScreenState extends State<BackendCenterScreen> {
                 ),
               if (api.token != null) ...[
                 if (!widget.trades) ...[
-                  const Text(
-                    'La máquina cura todos tus Pokémon con estado registrado. No revive mascotas muertas.',
-                  ),
-                  FilledButton.icon(
-                    onPressed: busy
-                        ? null
-                        : () => _run(() async {
-                            final count = await api.heal();
-                            _message('Pokémon actualizados: $count');
-                            await _refresh();
-                          }),
-                    icon: const Icon(Icons.healing),
-                    label: const Text('Curar todos'),
-                  ),
+                  const Text('Toca un Pokémon para curarlo.'),
+                  if (pokemon.isEmpty && !busy)
+                    const Text('No hay Pokémon para mostrar.'),
+                  for (final p in pokemon) _pokemon(p),
                 ] else ...[
-                  const Text('Elige un Pokémon disponible para ofrecer.'),
-                ],
-                if (pokemon.isEmpty && !busy)
-                  const Text('No hay Pokémon para mostrar.'),
-                for (final p in pokemon) _pokemon(p),
-                if (widget.trades) ...[
-                  TextField(
-                    controller: search,
-                    maxLength: 100,
-                    decoration: const InputDecoration(
-                      labelText: 'Buscar entrenador (mínimo 2 caracteres)',
-                    ),
-                  ),
-                  OutlinedButton(
-                    onPressed: busy
-                        ? null
-                        : () => _run(() async {
-                            final query = search.text.trim();
-                            if (query.length < 2 || query.length > 100) {
-                              throw const ApiException(
-                                400,
-                                'Escribe entre 2 y 100 caracteres.',
-                              );
-                            }
-                            final result = await api.users(query);
-                            if (mounted) {
-                              setState(() {
-                                users = result;
-                                selectedUser = null;
-                              });
-                            }
-                            if (result.isEmpty) {
-                              _message('No se encontraron entrenadores.');
-                            }
-                          }),
-                    child: const Text('Buscar'),
-                  ),
-                  for (final u in users)
-                    ListTile(
-                      title: Text(u['userName'] as String),
-                      trailing: Icon(
-                        selectedUser == u['id']
-                            ? Icons.check_circle
-                            : Icons.person_outline,
-                      ),
-                      onTap: busy
-                          ? null
-                          : () => setState(
-                              () => selectedUser = u['id'] as String,
-                            ),
-                    ),
-                  FilledButton(
-                    onPressed:
-                        busy || selectedUser == null || selectedPokemon == null
-                        ? null
-                        : () => _run(() async {
-                            await api.create(selectedUser!, selectedPokemon!);
-                            if (mounted) setState(() => selectedPokemon = null);
-                            _message('Invitación enviada.');
-                            await _refresh();
-                          }),
-                    child: const Text('Enviar invitación'),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Enviadas y recibidas',
+                  Text(
+                    widget.sentOnly
+                        ? 'Intercambios enviados'
+                        : 'Invitaciones recibidas',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                  const Text(
-                    'Actualiza para consultar respuestas y cambios de estado.',
+                  Text(
+                    widget.sentOnly
+                        ? 'Retoma un intercambio para consultar la respuesta y confirmar en la máquina.'
+                        : 'Acepta una invitación para elegir tu Pokémon y llevarlo a la máquina.',
                   ),
                   if (trades.isEmpty && !busy)
-                    const Text('No tienes intercambios.'),
+                    Text(
+                      widget.sentOnly
+                          ? 'No tienes intercambios enviados.'
+                          : 'No tienes invitaciones recibidas.',
+                    ),
                   for (final t in trades) _trade(t),
                 ],
               ],

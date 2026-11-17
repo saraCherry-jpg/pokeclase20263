@@ -97,11 +97,12 @@ class DashboardScreen extends StatelessWidget {
 
                 const SizedBox(height: 24),
                 Expanded(
-                  child: GridView.count(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => GridView.count(
                     crossAxisCount: 2,
                     mainAxisSpacing: 16,
                     crossAxisSpacing: 16,
-                    childAspectRatio: 0.9,
+                    mainAxisExtent: ((constraints.maxHeight - 16) / 2).clamp(200.0, 300.0),
 
                     children: [
                       MenuCard(
@@ -110,20 +111,6 @@ class DashboardScreen extends StatelessWidget {
                         subtitulo: 'Cura e intercambia tus Pokémon',
                         onTap: () => _ir(context, const PokemonCenterScreen()),
                       ),
-                      //Intercambio
-                      MenuCard(
-                        icono: Icons.swap_horiz_rounded,
-                        titulo: 'Intercambio',
-                        subtitulo: 'Cambia Pokemón con otros',
-                        onTap: () => _ir(
-                          context,
-                          const ProximamenteScreen( //Es otra vista que esta en widgets (carpeta) //Instancia del la clase
-                            titulo: 'Intercambio',
-                            icono: Icons.swap_horiz_rounded
-                          ),
-                        ),
-                      ),
-
                       //Capturados
                       MenuCard(
                         icono: Icons.catching_pokemon,
@@ -160,6 +147,7 @@ class DashboardScreen extends StatelessWidget {
 
                     ],
 
+                    ),
                   ),
                 ),
 

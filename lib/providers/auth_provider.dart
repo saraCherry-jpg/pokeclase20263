@@ -28,8 +28,8 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> register(String name, String email, String password) =>
       _perform(() async {
         await api.request(
-          '/api/auth/register',
-          post: true,
+          '/api/Auth/register',
+          method: 'POST',
           authenticated: false,
           body: {'userName': name, 'email': email, 'password': password},
         );

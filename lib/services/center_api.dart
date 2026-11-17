@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
 class ApiException implements Exception {
@@ -16,7 +17,7 @@ class CenterApi {
     http.Client? client,
     this.baseUrl = const String.fromEnvironment(
       'BACKEND_URL',
-      defaultValue: 'http://backpokemon.somee.com',
+      defaultValue: 'https://backpokemon.runasp.net',
     ),
   }) : _client = client ?? http.Client();
   static final instance = CenterApi();
@@ -26,32 +27,31 @@ class CenterApi {
   String? token;
   String? userName;
 
+  Uri uri(String path) =>
+      Uri.parse('${baseUrl.replaceFirst(RegExp(r'/+$'), '')}$path');
+
   Future<dynamic> request(
     String path, {
     Map<String, String>? query,
     Map<String, dynamic>? body,
-    bool post = false,
+    String method = 'GET',
     bool authenticated = true,
   }) async {
     if (authenticated && token == null) {
       throw const ApiException(401, 'Inicia sesión para continuar.');
     }
-    final uri = Uri.parse('$baseUrl$path').replace(queryParameters: query);
+    final uri = this.uri(path).replace(queryParameters: query);
     final headers = <String, String>{
       if (authenticated) 'Authorization': 'Bearer $token',
       if (body != null) 'Content-Type': 'application/json',
     };
     http.Response response;
     try {
-      response =
-          await (post
-                  ? _client.post(
-                      uri,
-                      headers: headers,
-                      body: body == null ? null : jsonEncode(body),
-                    )
-                  : _client.get(uri, headers: headers))
-              .timeout(const Duration(seconds: 25));
+      response = await (() async {
+        final request = http.Request(method, uri)..headers.addAll(headers);
+        if (body != null) request.body = jsonEncode(body);
+        return http.Response.fromStream(await _client.send(request));
+      })().timeout(const Duration(seconds: 25));
     } catch (_) {
       throw const ApiException(
         0,
@@ -77,8 +77,7 @@ class CenterApi {
         onUnauthorized?.call();
       }
       final messages = {
-        401:
-            'La sesión venció o las credenciales son incorrectas. Inicia sesión.',
+        401: 'La sesión venció o las credenciales son incorrectas. Inicia sesión.',
         403: 'Tu rol no permite esta acción.',
         404: 'No se encontró el recurso.',
         409: 'Cambió el intercambio o la disponibilidad. Actualiza la lista.',
@@ -98,8 +97,8 @@ class CenterApi {
 
   Future<void> login(String name, String password) async {
     final data = await request(
-      '/api/auth/login',
-      post: true,
+      '/api/Auth/login',
+      method: 'POST',
       authenticated: false,
       body: {'userName': name, 'password': password},
     );
@@ -109,33 +108,31 @@ class CenterApi {
 
   Future<List<Map<String, dynamic>>> pokemon({
     bool availableOnly = false,
-  }) async =>
-      (await request(
-                '/me/pokemon',
-                query: availableOnly ? {'available': 'true'} : null,
-              )
-              as List)
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+  }) async => (await request(
+    '/api/me/pokemon',
+    query: availableOnly ? {'available': 'true'} : null,
+  ) as List).map((e) => Map<String, dynamic>.from(e)).toList();
   Future<List<Map<String, dynamic>>> trades() async =>
-      (await request('/me/trades') as List)
+      (await request('/api/me/trades') as List)
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
   Future<List<Map<String, dynamic>>> users(String search) async =>
-      (await request('/users', query: {'search': search}) as List)
+      (await request('/api/Users', query: {'search': search}) as List)
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
-  Future<int> heal() async =>
-      (await request('/me/pokemon/heal', post: true))['healed'] as int;
+  Future<void> heal(int pokemonUserId) async {
+    await request('/api/me/pokemon/$pokemonUserId/heal', method: 'PATCH');
+  }
+
   Future<dynamic> create(String recipient, int pokemonId) => request(
-    '/trades',
-    post: true,
+    '/api/trades',
+    method: 'POST',
     body: {'recipientUserId': recipient, 'pokemonUserId': pokemonId},
   );
-  Future<dynamic> detail(int id) => request('/trades/$id');
+  Future<dynamic> detail(int id) => request('/api/trades/$id');
   Future<dynamic> action(int id, String action, {int? pokemonId}) => request(
-    '/trades/$id/$action',
-    post: true,
+    '/api/trades/$id/$action',
+    method: 'POST',
     body: pokemonId == null ? null : {'pokemonUserId': pokemonId},
   );
 }
