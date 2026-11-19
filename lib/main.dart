@@ -4,6 +4,7 @@ ES LA VISTA DE LA INTERFAZ DE LA POKEAPI
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 //import 'package:flutter/widgets.dart';
+import 'package:pokeclase20263/minijuegos/batalla/batalla_screen.dart';
 import 'package:pokeclase20263/providers/poke_api_provider.dart';
 import 'package:pokeclase20263/screens/dashboard_screen.dart';
 import 'package:pokeclase20263/screens/generation_list_screen.dart';
@@ -27,7 +28,9 @@ class AppState extends StatelessWidget{
           ChangeNotifierProvider(
           create: (_) => AuthProvider(), //inicio de sesión
           lazy: false,
-          )
+          ),
+
+          ...batallaProviders(), //minijuego de batalla
       ],
 
       child: MyApp(),
