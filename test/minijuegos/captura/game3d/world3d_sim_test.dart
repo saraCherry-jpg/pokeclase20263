@@ -1,0 +1,165 @@
+// PRUEBAS de la simulación 3D: el jugador empieza en `@`, se mueve relativo a
+// la cámara, choca con los árboles del mapa ASCII, y la cámara responde al
+// arrastre del ratón, a Q/E y a la rueda (y se recentra detrás del jugador
+// con V hasta que se la gire a mano). En pausa no se mueve. La vista solo
+// marca a los Pokémon que se ven cerca (libres, no escondidos, a ≤ 22 m).
+
+import 'dart:math' as math;
+
+import 'package:flame/extensions.dart' show Vector2;
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pokeclase20263/minijuegos/captura/game/map/map_layout.dart';
+import 'package:pokeclase20263/minijuegos/captura/game3d/sim/wild_pokemon.dart';
+import 'package:pokeclase20263/minijuegos/captura/game3d/sim/world3d_sim.dart';
+import 'package:vector_math/vector_math.dart' show Vector3;
+
+import '../fakes/fake_pokemon_repository.dart';
+
+void main() {
+  final layout = MapLayout.parse(const [
+    'TTTTTTT',
+    'T.....T',
+    'T.....T',
+    'T..@..T',
+    'T.....T',
+    'TTTTTTT',
+  ]);
+
+  World3DSim sim() => World3DSim(layout: layout);
+
+  void step(World3DSim s, double seconds) {
+    for (var t = 0.0; t < seconds; t += 1 / 60) {
+      s.update(1 / 60);
+    }
+  }
+
+  test('the player starts at the center of the @ cell', () {
+    final s = sim();
+    expect(s.player.position.x, closeTo(3.5 * 2, 1e-6));
+    expect(s.player.position.z, closeTo(3.5 * 2, 1e-6));
+    expect(s.width, 14);
+    expect(s.depth, 12);
+  });
+
+  test('"up" moves away from the camera (camera yaw 0 means -Z)', () {
+    final s = sim();
+    final start = s.player.position;
+    s.input.setKeyboardDirection(Vector2(0, -1));
+    step(s, 0.3);
+
+    expect(s.player.position.z, lessThan(start.z));
+    expect(s.player.position.x, closeTo(start.x, 1e-6));
+  });
+
+  test('movement follows the camera when it rotates', () {
+    final s = sim();
+    s.camera.yaw = math.pi / 2; // cámara en +X mirando hacia -X
+    final start = s.player.position;
+    s.input.setKeyboardDirection(Vector2(0, -1));
+    step(s, 0.3);
+
+    expect(s.player.position.x, lessThan(start.x));
+    expect(s.player.position.z, closeTo(start.z, 1e-3));
+  });
+
+  test('trees block the player', () {
+    final s = sim();
+    s.input.setKeyboardDirection(Vector2(0, -1));
+    step(s, 5);
+
+    // La fila 0 son árboles: el borde del jugador no entra en z < 2.
+    expect(
+      s.player.position.z - s.config.playerRadius,
+      greaterThanOrEqualTo(2),
+    );
+  });
+
+  test('dragging the mouse and Q/E rotate the camera; wheel zooms', () {
+    final s = sim();
+    final yaw0 = s.camera.yaw;
+    s.cameraInput.addDrag(-100, 0);
+    s.update(1 / 60);
+    expect(s.camera.yaw, greaterThan(yaw0));
+
+    final yaw1 = s.camera.yaw;
+    s.cameraInput.updateFromKeys({LogicalKeyboardKey.keyE});
+    s.update(0.1);
+    expect(s.camera.yaw, greaterThan(yaw1));
+
+    final d0 = s.camera.distance;
+    s.cameraInput.addZoom(2);
+    s.update(1 / 60);
+    expect(s.camera.distance, d0 + 2);
+    // El zoom se consume: no se vuelve a aplicar.
+    s.update(1 / 60);
+    expect(s.camera.distance, d0 + 2);
+  });
+
+  test('when input is disabled (paused) the player does not move', () {
+    final s = sim();
+    final start = s.player.position;
+    s.input
+      ..setKeyboardDirection(Vector2(1, 0))
+      ..enabled = false;
+    step(s, 1);
+    expect(s.player.position, start);
+  });
+
+  test('the camera never ends up inside the trees behind the player', () {
+    final s = sim();
+    // Camina hacia +Z (hacia la cámara) hasta pegarse a los árboles de la
+    // última fila: la cámara, que está detrás, quedaría dentro de ellos.
+    s.input.setKeyboardDirection(Vector2(0, 1));
+    step(s, 3);
+
+    final eye = s.camera.eyeFor(s.player.position);
+    expect(eye.y, greaterThan(s.ballSystem.heightAt(eye.x, eye.z)));
+    // No cabe detrás: sube para mirar desde arriba.
+    expect(s.camera.pitchLift, greaterThan(0.5));
+  });
+
+  test('cellAt maps world meters back to map cells', () {
+    final s = sim();
+    expect(s.cellAt(s.cellCenter(5, 2)), (col: 5, row: 2));
+  });
+
+  test('recentering puts the camera behind the player until you turn it', () {
+    final s = sim();
+    s.player.facing = 2;
+    s.camera.yaw = -1;
+    s.recenterCamera();
+    for (var i = 0; i < 60; i++) {
+      s.update(1 / 60);
+    }
+    final ahead = Vector3(math.sin(2), 0, math.cos(2));
+    expect(s.camera.forward.dot(ahead), closeTo(1, 1e-6));
+
+    // Otra vez, pero arrastrando a mitad: manda el jugador.
+    s.player.facing = -1;
+    s.recenterCamera();
+    s.update(1 / 60);
+    s.cameraInput.addDrag(30, 0);
+    s.update(1 / 60);
+    expect(s.camera.recenterGoal, isNull);
+  });
+
+  test('only nearby, free, not hidden Pokémon get marks', () {
+    final s = sim();
+    WildPokemon at(String id, double dx) {
+      final w = WildPokemon(
+        id: id,
+        pokemon: fakePokemon(1),
+        position: s.player.position + Vector3(dx, 0, 0),
+      );
+      s.wild.add(w);
+      return w;
+    }
+
+    at('near', 3);
+    at('far', World3DSim.markRange + 1);
+    at('hidden', 4).hidden = true;
+    at('in a ball', 5).capturedBy = 'ball-1';
+    expect(s.visibleWildNearby.map((w) => w.id), ['near']);
+  });
+}

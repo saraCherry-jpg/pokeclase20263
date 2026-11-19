@@ -1,0 +1,747 @@
+// PRUEBAS del lanzamiento de Poké Balls en el mundo 3D: el tiro parabólico
+// llega a su destino, la mira fija al Pokémon más centrado, la bola sale de
+// la mano al final del gesto, golpea, absorbe, cae, se sacude y termina en
+// captura o en huida; si no da a nadie rebota (también contra árboles) y
+// queda en el suelo para recogerla.
+
+import 'dart:math';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pokeclase20263/minijuegos/captura/controllers/capture/capture_calculator.dart';
+import 'package:pokeclase20263/minijuegos/captura/game/map/map_layout.dart';
+import 'package:pokeclase20263/minijuegos/captura/game3d/sim/aiming.dart';
+import 'package:pokeclase20263/minijuegos/captura/game3d/sim/throwing.dart';
+import 'package:pokeclase20263/minijuegos/captura/game3d/sim/wild_pokemon.dart';
+import 'package:pokeclase20263/minijuegos/captura/game3d/sim/world3d_sim.dart';
+import 'package:pokeclase20263/minijuegos/captura/models/poke_ball.dart';
+import 'package:vector_math/vector_math.dart';
+
+import '../fakes/fake_pokemon_repository.dart';
+
+/// Random que siempre devuelve lo mismo: 0 = todas las comprobaciones de
+/// captura salen bien; 0.999 = todas salen mal.
+class _FixedRandom implements Random {
+  _FixedRandom(this.value);
+
+  final double value;
+
+  @override
+  double nextDouble() => value;
+
+  @override
+  int nextInt(int max) => (value * max).floor().clamp(0, max - 1);
+
+  @override
+  bool nextBool() => value >= 0.5;
+}
+
+void main() {
+  // Campo abierto de 24x7 casillas (48 x 14 m), jugador a la izquierda.
+  final open = MapLayout.parse(const [
+    'TTTTTTTTTTTTTTTTTTTTTTTT',
+    'T......................T',
+    'T......................T',
+    'T..@...................T',
+    'T......................T',
+    'T......................T',
+    'TTTTTTTTTTTTTTTTTTTTTTTT',
+  ]);
+
+  /// Mundo sin bolas en el suelo; la cámara mira hacia +X. Aquí nadie
+  /// esquiva (eso se prueba en dodge_test.dart).
+  World3DSim world({
+    MapLayout? layout,
+    double roll = 0,
+    List<World3DEvent>? events,
+  }) {
+    final s = World3DSim(
+      layout: layout ?? open,
+      maxFieldItems: 0,
+      calculator: CaptureCalculator(random: _FixedRandom(roll)),
+      dodgeRandom: _FixedRandom(0.999),
+      onEvent: events?.add,
+    );
+    s.camera.yaw = -pi / 2; // forward = +X
+    return s;
+  }
+
+  WildPokemon addWild(
+    World3DSim s,
+    Vector3 at, {
+    int captureRate = 45,
+    Temperament temperament = Temperament.curious,
+  }) {
+    final w = WildPokemon(
+      id: 'w${s.wild.length}',
+      pokemon: fakePokemon(25),
+      position: at,
+      captureRate: captureRate,
+      temperament: temperament,
+      facing: pi / 2, // mira hacia +X (de espaldas al jugador)
+    )..idleTime = 1e9; // que no se mueva
+    s.wild.add(w);
+    return w;
+  }
+
+  void step(World3DSim s, double seconds) {
+    for (var t = 0.0; t < seconds; t += 1 / 60) {
+      s.update(1 / 60);
+    }
+  }
+
+  group('ballistics', () {
+    test('the low arc passes through the target', () {
+      final from = Vector3(0, 1.5, 0);
+      final to = Vector3(10, 0.5, 4);
+      final v = ballisticVelocity(from, to)!;
+      expect(v.length, closeTo(throwSpeed, 1e-6));
+
+      // Integrar a mano y comprobar que pasa cerca del objetivo.
+      final p = from.clone();
+      final vel = v.clone();
+      var closest = double.infinity;
+      for (var i = 0; i < 400; i++) {
+        vel.y -= gravity / 200;
+        p.add(vel / 200);
+        closest = min(closest, p.distanceTo(to));
+      }
+      expect(closest, lessThan(0.1));
+    });
+
+    test('out of range gives null', () {
+      expect(ballisticVelocity(Vector3.zero(), Vector3(40, 0, 0)), isNull);
+    });
+
+    test('obstacles have heights; walkable ground has none', () {
+      expect(obstacleHeight(TileKind.grass), 0);
+      expect(obstacleHeight(TileKind.fence), lessThan(1.5));
+      expect(obstacleHeight(TileKind.tree), greaterThan(3));
+      expect(obstacleHeight(null), greaterThan(5), reason: 'outer forest');
+    });
+  });
+
+  group('aiming', () {
+    test('locks the most centered free Pokémon in range', () {
+      final s = world();
+      final p = s.player.position;
+      final centered = addWild(s, p + Vector3(10, 0, 0.3));
+      addWild(s, p + Vector3(6, 0, 2.5)); // ~23°: fuera del cono
+      final behind = addWild(s, p + Vector3(-5, 0, 0));
+      addWild(s, p + Vector3(maxLockDistance + 3, 0, 0)); // demasiado lejos
+
+      expect(
+        findLockTarget(player: p, forward: Vector3(1, 0, 0), wild: s.wild),
+        centered,
+      );
+      expect(
+        findLockTarget(player: p, forward: Vector3(-1, 0, 0), wild: s.wild),
+        behind,
+      );
+      centered.capturedBy = 'ball-x';
+      expect(
+        findLockTarget(player: p, forward: Vector3(1, 0, 0), wild: s.wild),
+        isNull,
+        reason: 'inside a ball: not a target',
+      );
+    });
+
+    test('aiming brings the camera to the shoulder and shows the arc', () {
+      final s = world();
+      final w = addWild(s, s.player.position + Vector3(9, 0, 0));
+      expect(s.aimPreview, isEmpty, reason: 'not aiming');
+
+      s.aiming = true;
+      step(s, 0.5);
+      expect(s.camera.aim, greaterThan(0.9));
+      expect(s.lockedTarget, w);
+      final arc = s.aimPreview;
+      expect(arc.length, greaterThan(5));
+      expect(arc.last.distanceTo(w.position), lessThan(w.hitRadius + 0.6));
+
+      s.aiming = false;
+      step(s, 0.5);
+      expect(s.camera.aim, lessThan(0.1));
+    });
+
+    test('while aiming the body turns towards the target', () {
+      final s = world();
+      addWild(s, s.player.position + Vector3(0, 0, 8)); // a +Z
+      s.camera.yaw = pi; // forward = +Z
+      s.aiming = true;
+      step(s, 0.6);
+      expect(s.player.facing, closeTo(0, 0.05)); // 0 = mirando a +Z
+    });
+  });
+
+  group('throwing', () {
+    test('the ball leaves the hand at the release moment, one at a time', () {
+      final s = world();
+      expect(s.throwBall(PokeBallType.poke), isTrue);
+      expect(s.throwBall(PokeBallType.poke), isFalse, reason: 'mid-throw');
+      expect(s.throwProgress, 0);
+      s.update(World3DSim.releaseTime * 0.5);
+      expect(s.balls, isEmpty);
+      s.update(World3DSim.releaseTime);
+      expect(s.balls, hasLength(1));
+      expect(s.balls.single.position.y, greaterThan(1));
+      step(s, World3DSim.throwDuration);
+      expect(s.throwProgress, isNull);
+      expect(s.canThrow, isTrue);
+    });
+
+    test('the held ball and the chance follow the ready ball', () {
+      final s = world();
+      addWild(s, s.player.position + Vector3(8, 0, 0), captureRate: 51);
+      step(s, 0.1);
+      expect(s.heldBall, isNull, reason: 'not aiming');
+
+      s.aiming = true;
+      expect(s.heldBall, PokeBallType.poke);
+      // Por la espalda y sin ser visto: 0,2 × 2.
+      expect(s.lockedChance, closeTo(0.4, 1e-9));
+      s.readyBall = PokeBallType.ultra;
+      expect(s.lockedChance, closeTo(0.8, 1e-9));
+
+      s.readyBall = null; // bolsa vacía
+      expect(s.heldBall, isNull);
+      expect(s.lockedChance, isNull);
+      expect(s.aimPreview, isEmpty);
+
+      s.throwBall(PokeBallType.great);
+      expect(s.heldBall, PokeBallType.great, reason: 'in hand until release');
+      step(s, World3DSim.releaseTime + 0.05);
+      expect(s.heldBall, isNull);
+    });
+
+    test('no throwing while paused', () {
+      final s = world()..setPaused(true);
+      expect(s.throwBall(PokeBallType.poke), isFalse);
+    });
+
+    test('hit → absorb → fall → 3 shakes → caught', () {
+      final events = <World3DEvent>[];
+      final s = world(events: events);
+      final w = addWild(s, s.player.position + Vector3(9, 0, 0));
+      step(s, 0.1);
+      expect(s.lockedTarget, w);
+      s.throwBall(PokeBallType.great);
+
+      // Vuela hasta golpearlo.
+      var guard = 0;
+      while (s.balls.isEmpty || s.balls.single.phase == BallPhase.flying) {
+        s.update(1 / 60);
+        expect(++guard, lessThan(200), reason: 'should hit within ~3 s');
+      }
+      final ball = s.balls.single;
+      expect(ball.phase, BallPhase.absorbing);
+      expect(ball.target, w);
+      expect(w.capturedBy, ball.id);
+      expect(w.isFree, isFalse);
+      expect(ball.velocity.y, greaterThan(0), reason: 'pops up');
+
+      // Absorbe, cae y se sacude.
+      step(s, ThrownBall.absorbTime + 0.8);
+      expect(ball.phase, BallPhase.shaking);
+      expect(ball.position.y, closeTo(ballRadius, 1e-6));
+
+      var sawWobble = false;
+      while (ball.phase == BallPhase.shaking) {
+        s.update(1 / 60);
+        sawWobble |= ball.wobble.abs() > 0.1;
+      }
+      expect(sawWobble, isTrue);
+      expect(ball.shakesDone, 3);
+      expect(ball.phase, BallPhase.caught);
+      expect(s.wild, isEmpty, reason: 'caught: gone from the world');
+      final caught = events.whereType<PokemonCaught>().single;
+      expect(caught.wild, w);
+      expect(caught.ball, PokeBallType.great);
+      expect(caught.result.caught, isTrue);
+
+      step(s, ThrownBall.caughtTime + 0.1);
+      expect(s.balls, isEmpty);
+    });
+
+    test('a critical capture shakes once, harder, and is caught', () {
+      final events = <World3DEvent>[];
+      final s = world(events: events)..criticalChance = 1;
+      addWild(s, s.player.position + Vector3(9, 0, 0));
+      step(s, 0.1);
+      s.throwBall(PokeBallType.poke);
+      while (s.balls.isEmpty || s.balls.single.phase == BallPhase.flying) {
+        s.update(1 / 60);
+      }
+      final ball = s.balls.single;
+      expect(ball.result!.critical, isTrue);
+      expect(
+        ball.shakingDuration,
+        ThrownBall.shakeSettle + ThrownBall.shakeTime + ThrownBall.finalPause,
+      );
+
+      var maxWobble = 0.0;
+      while (ball.phase != BallPhase.caught) {
+        s.update(1 / 60);
+        maxWobble = max(maxWobble, ball.wobble.abs());
+      }
+      expect(ball.shakesDone, 1);
+      expect(
+        maxWobble,
+        greaterThan(0.45),
+        reason: 'stronger than a normal one',
+      );
+      expect(events.whereType<PokemonCaught>().single.result.critical, isTrue);
+    });
+
+    test('all checks fail → no shakes, it breaks free and is alert', () {
+      final events = <World3DEvent>[];
+      final s = world(roll: 0.999, events: events);
+      final w = addWild(s, s.player.position + Vector3(7, 0, 0));
+      step(s, 0.1);
+      s.throwBall(PokeBallType.poke);
+      step(s, 4);
+
+      final escaped = events.whereType<PokemonBrokeFree>().single;
+      expect(escaped.result.shakes, 0);
+      expect(w.isFree, isTrue);
+      expect(w.isAlert, isTrue);
+      expect(s.wild, contains(w));
+      expect(s.balls, isEmpty, reason: 'the ball is lost');
+      expect(s.fieldItems.items, isEmpty);
+    });
+
+    test('hitting its back gives the stealth bonus', () {
+      final events = <World3DEvent>[];
+      final s = world(events: events);
+      // Ratio 51 → 0,2. Sin ser visto ×1,5 = 0,3; por la espalda ×2 = 0,4.
+      final w = addWild(
+        s,
+        s.player.position + Vector3(8, 0, 0),
+        captureRate: 51,
+      );
+      step(s, 0.1);
+      s.throwBall(PokeBallType.poke);
+      // Justo tras el golpe la bola cuenta cómo fue (para enseñarlo).
+      while (s.balls.isEmpty || s.balls.single.phase == BallPhase.flying) {
+        s.update(1 / 60);
+      }
+      final ball = s.balls.single;
+      expect(ball.hit, (
+        unaware: true,
+        fromBehind: true,
+        eating: false,
+        asleep: false,
+      ));
+      expect(ball.sinceHit, closeTo(0, 0.02));
+      step(s, 0.5);
+      // (Menos la micro-pausa del golpe: el mundo se congela un instante.)
+      expect(ball.sinceHit, closeTo(0.5 - World3DSim.hitStopSeconds, 0.03));
+      step(s, 5.5);
+      expect(
+        events.whereType<PokemonCaught>().single.result.chance,
+        closeTo(0.4, 1e-9),
+      );
+
+      // De frente y ya alerta: sin bonus. (Curioso y a 3 m: se queda
+      // quieto mirándote.)
+      events.clear();
+      final front =
+          addWild(s, s.player.position + Vector3(3, 0, 0), captureRate: 51)
+            ..facing = -pi / 2
+            ..alertTime = 30;
+      step(s, 0.1);
+      expect(s.lockedTarget, front);
+      s.throwBall(PokeBallType.poke);
+      step(s, 0.6);
+      expect(s.balls.last.hit, (
+        unaware: false,
+        fromBehind: false,
+        eating: false,
+        asleep: false,
+      ));
+      // (Difícil, 0,2: la última sacudida va a cámara lenta y tarda más.)
+      step(s, 8.4);
+      expect(
+        events.whereType<PokemonCaught>().single.result.chance,
+        closeTo(0.2, 1e-9),
+      );
+      expect(w.capturedBy, isNotNull);
+    });
+
+    test('a miss bounces, rolls, and stays on the ground to pick up', () {
+      final events = <World3DEvent>[];
+      final s = world(events: events);
+      s.throwBall(PokeBallType.ultra);
+      step(s, 0.3);
+      final ball = s.balls.single;
+      var maxY = 0.0;
+      for (var i = 0; i < 600 && s.balls.isNotEmpty; i++) {
+        s.update(1 / 60);
+        maxY = max(maxY, ball.position.y);
+        if (ball.bounces > 0) expect(ball.phase, BallPhase.missed);
+      }
+      expect(s.balls, isEmpty);
+      expect(ball.bounces, greaterThan(0));
+      expect(events.whereType<BallMissed>().single.ball, PokeBallType.ultra);
+
+      final item = s.fieldItems.items.single;
+      expect(item.dropped, isTrue);
+      expect(item.ball, PokeBallType.ultra);
+      expect(
+        open.isWalkable(
+          s.cellAt(item.position).col,
+          s.cellAt(item.position).row,
+        ),
+        isTrue,
+      );
+
+      // Se recoge al pasar.
+      events.clear();
+      s.player.teleport(item.position);
+      s.update(1 / 60);
+      expect(events.whereType<BallsPickedUp>().single.ball, PokeBallType.ultra);
+    });
+
+    test('trees stop the ball: it never goes through them', () {
+      final wall = MapLayout.parse(const [
+        'TTTTTTTTTTTTTTTT',
+        'T.......T......T',
+        'T.......T......T',
+        'T..@....T......T',
+        'T.......T......T',
+        'T.......T......T',
+        'TTTTTTTTTTTTTTTT',
+      ]);
+      final s = world(layout: wall);
+      s.camera.pitch = 0.3; // tiro tenso, a la altura del árbol
+      s.throwBall(PokeBallType.poke);
+      step(s, 0.3);
+      final ball = s.balls.single;
+      var bounced = false;
+      for (var i = 0; i < 900 && s.balls.isNotEmpty; i++) {
+        s.update(1 / 60);
+        final inTree = ball.position.x >= 16 && ball.position.x < 18;
+        if (inTree) expect(ball.position.y, greaterThanOrEqualTo(4.5));
+        expect(ball.position.x, lessThan(18), reason: 'never past the tree');
+        bounced |= ball.velocity.x < 0;
+      }
+      expect(bounced, isTrue);
+      expect(s.fieldItems.items.single.position.x, lessThan(16));
+    });
+
+    test('a Pokémon inside a ball does not move nor push the grass', () {
+      final s = world();
+      final w = addWild(s, s.player.position + Vector3(6, 0, 0))
+        ..capturedBy = 'ball-9'
+        ..target = s.player.position + Vector3(8, 0, 0);
+      final start = w.position;
+      step(s, 1);
+      expect(w.position, start);
+      expect(s.grassPushers, hasLength(1), reason: 'only the player');
+    });
+  });
+
+  test('wobble only during the shakes that the result allows', () {
+    final ball =
+        ThrownBall(
+            id: 'b',
+            ball: PokeBallType.poke,
+            position: Vector3.zero(),
+            velocity: Vector3.zero(),
+          )
+          ..result = const CaptureResult(chance: 0.5, shakes: 1, caught: false)
+          ..setPhase(BallPhase.shaking);
+    expect(
+      ball.shakingDuration,
+      ThrownBall.shakeSettle + ThrownBall.shakeTime + ThrownBall.finalPause,
+    );
+    ball.phaseTime = ThrownBall.shakeSettle + ThrownBall.shakeTime * 0.25;
+    expect(ball.wobble.abs(), greaterThan(0.1));
+    ball.phaseTime = ball.shakingDuration - 0.05;
+    expect(ball.wobble, 0, reason: 'second shake is not in the result');
+  });
+
+  test('tension: each shake leans further, each pause is longer', () {
+    final ball =
+        ThrownBall(
+            id: 'b',
+            ball: PokeBallType.poke,
+            position: Vector3.zero(),
+            velocity: Vector3.zero(),
+          )
+          ..result = const CaptureResult(chance: 0.5, shakes: 3, caught: true)
+          ..setPhase(BallPhase.shaking);
+    // La mayor inclinación de cada sacudida.
+    final peaks = [
+      for (var i = 0; i < 3; i++)
+        [
+          for (var k = 0; k < 100; k++)
+            (ball
+                  ..phaseTime =
+                      ball.shakeStart(i) + ThrownBall.shakeTime * k / 100)
+                .wobble
+                .abs(),
+        ].reduce(max),
+    ];
+    expect(peaks[1], greaterThan(peaks[0] + 0.1));
+    expect(peaks[2], greaterThan(peaks[1] + 0.1));
+    // Pausas: cada vez más largas; la última (antes del resultado), la
+    // más larga.
+    final pauses = [for (var i = 0; i < 3; i++) ThrownBall.pauseAfter(i, 3)];
+    expect(pauses[1], greaterThan(pauses[0]));
+    expect(pauses[2], greaterThan(pauses[1]));
+    expect(
+      ball.shakeStart(2) - ball.shakeStart(1),
+      greaterThan(ball.shakeStart(1) - ball.shakeStart(0)),
+    );
+    expect(
+      ball.shakingDuration,
+      closeTo(ball.shakeStart(2) + ThrownBall.shakeTime + pauses[2], 1e-9),
+    );
+    // Cada sacudida cuenta al empezar.
+    ball.phaseTime = ball.shakeStart(1) + 0.01;
+    expect(ball.shakesStarted, 2);
+  });
+
+  test('the ball on the ground pushes the tall grass aside', () {
+    final ball = ThrownBall(
+      id: 'b',
+      ball: PokeBallType.poke,
+      position: Vector3(0, 3, 0),
+      velocity: Vector3.zero(),
+    )..result = const CaptureResult(chance: 0.5, shakes: 1, caught: true);
+    expect(ball.pressesGrass, isFalse, reason: 'flying');
+    ball.setPhase(BallPhase.falling);
+    expect(ball.pressesGrass, isFalse, reason: 'still high');
+    ball.position = Vector3(0, ballRadius, 0);
+    expect(ball.pressesGrass, isTrue);
+    ball.setPhase(BallPhase.shaking);
+    expect(ball.pressesGrass, isTrue);
+    ball.setPhase(BallPhase.caught);
+    expect(ball.pressesGrass, isTrue, reason: 'the stars');
+    ball.phaseTime = ThrownBall.returnStart + 0.1;
+    expect(ball.pressesGrass, isFalse, reason: 'back to the backpack');
+    ball.setPhase(BallPhase.missed);
+    expect(ball.pressesGrass, isFalse, reason: 'rolls past');
+  });
+
+  test('once caught, the ball flies back in an arc to the backpack', () {
+    final ball =
+        ThrownBall(
+            id: 'b',
+            ball: PokeBallType.poke,
+            position: Vector3(6, ballRadius, 0),
+            velocity: Vector3.zero(),
+          )
+          ..result = const CaptureResult(chance: 0.5, shakes: 3, caught: true)
+          ..setPhase(BallPhase.caught);
+    final backpack = Vector3(0, 1.1, 0);
+    expect(ball.returnProgress, isNull, reason: 'the click and the stars');
+    expect(ball.returnPosition(backpack), ball.position);
+
+    ball.phaseTime = ThrownBall.returnStart;
+    expect(ball.returnProgress, 0);
+    expect(ball.returnPosition(backpack).distanceTo(ball.position), 0);
+    const flight = ThrownBall.caughtTime - ThrownBall.returnStart;
+    // Sale despacio y llega deprisa: a la mitad del tiempo, aún le queda
+    // más de la mitad del camino.
+    ball.phaseTime = ThrownBall.returnStart + flight / 2;
+    expect(ball.returnPosition(backpack).x, greaterThan(4));
+    // Por el medio del camino va por encima de los dos (un arco).
+    ball.phaseTime = ThrownBall.returnStart + flight * sqrt(0.5);
+    final mid = ball.returnPosition(backpack);
+    expect(mid.x, closeTo(3, 1e-5));
+    expect(mid.y, greaterThan(backpack.y + 0.2));
+    ball.phaseTime = ThrownBall.caughtTime;
+    expect(ball.returnProgress, 1);
+    expect(ball.returnPosition(backpack).distanceTo(backpack), lessThan(1e-6));
+  });
+
+  test('the backpack is on the back of the trainer, lower when crouching', () {
+    final s = World3DSim(layout: open, maxFieldItems: 0);
+    s.player.facing = 0; // mirando hacia +Z
+    final feet = s.player.position;
+    final pack = s.backpackPosition;
+    expect(pack.z, lessThan(feet.z), reason: 'behind');
+    expect(pack.y, closeTo(1.1, 1e-6));
+    s.crouchAmount = 1;
+    expect(s.backpackPosition.y, lessThan(pack.y));
+  });
+
+  test('the button glows red with each shake and clicks white when caught', () {
+    final ball =
+        ThrownBall(
+            id: 'b',
+            ball: PokeBallType.poke,
+            position: Vector3.zero(),
+            velocity: Vector3.zero(),
+          )
+          ..result = const CaptureResult(chance: 0.5, shakes: 2, caught: true)
+          ..setPhase(BallPhase.shaking);
+    expect(ball.buttonGlow, 0, reason: 'settling after the fall');
+    ball.phaseTime = ThrownBall.shakeSettle + ThrownBall.shakeTime / 2;
+    expect(ball.buttonGlow, closeTo(1, 1e-9), reason: 'middle of shake 1');
+    ball.phaseTime = ThrownBall.shakeSettle + ThrownBall.shakeTime + 0.1;
+    expect(ball.buttonGlow, 0, reason: 'pause between shakes');
+    ball.phaseTime = ball.shakeStart(1) + ThrownBall.shakeTime / 2;
+    expect(ball.buttonGlow, closeTo(1, 1e-9), reason: 'middle of shake 2');
+    ball.phaseTime = ball.shakingDuration - 0.05;
+    expect(ball.buttonGlow, 0, reason: 'no third shake');
+    expect(ball.clickFlash, 0);
+
+    ball.setPhase(BallPhase.caught);
+    expect(ball.clickFlash, 1);
+    expect(ball.buttonGlow, 0);
+    ball.phaseTime = ThrownBall.clickTime;
+    expect(ball.clickFlash, 0);
+  });
+
+  test('a flying ball leaves a short trail that fades once it lands', () {
+    final system = BallSystem(
+      layout: MapLayout.parse(['T' * 20, 'T@${'.' * 17}T', 'T' * 20]),
+      tileSize: 2,
+      calculator: CaptureCalculator(random: Random(1)),
+    );
+    final ball = system.launch(
+      PokeBallType.great,
+      Vector3(3, 1.5, 3),
+      Vector3(12, 3, 0),
+    );
+    void update() => system.update(
+      1 / 60,
+      wild: const [],
+      drop: (_, _) {},
+      remove: (_) {},
+      emit: (_) {},
+    );
+
+    for (var i = 0; i < 20; i++) {
+      update();
+    }
+    expect(ball.trail.length, greaterThan(3));
+    expect(ball.trail.length, lessThanOrEqualTo(ThrownBall.trailLength));
+    // Todos los puntos quedan detrás de la bola (va hacia +X).
+    for (final p in ball.trail) {
+      expect(p.x, lessThanOrEqualTo(ball.position.x));
+    }
+    for (var i = 1; i < ball.trail.length; i++) {
+      expect(
+        ball.trail[i].distanceTo(ball.trail[i - 1]),
+        greaterThanOrEqualTo(ThrownBall.trailSpacing - 1e-6),
+      );
+    }
+
+    // Tras el primer bote ya no vuela: la estela se acorta hasta desaparecer.
+    while (ball.phase == BallPhase.flying) {
+      update();
+    }
+    for (var i = 0; i < ThrownBall.trailLength; i++) {
+      update();
+    }
+    expect(ball.trail, isEmpty);
+  });
+
+  test('the aiming pose blends in and out in a moment; after a throw it '
+      'comes back gradually', () {
+    final s = world();
+    void stepFor(double seconds) {
+      for (var t = 0.0; t < seconds - 1e-9; t += 1 / 60) {
+        s.update(1 / 60);
+      }
+    }
+
+    expect(s.aimPose, 0);
+    s.aiming = true;
+    stepFor(1 / 60);
+    expect(s.aimPose, inExclusiveRange(0, 0.5));
+    stepFor(World3DSim.aimBlendTime);
+    expect(s.aimPose, 1);
+    // Lanzando: no cambia (es de dónde arrancó el gesto)...
+    s.throwBall(PokeBallType.poke);
+    stepFor(World3DSim.throwDuration / 2);
+    expect(s.aimPose, 1);
+    // ...y al terminar vuelve a prepararse desde el brazo colgando.
+    stepFor(World3DSim.throwDuration / 2 + 1 / 60);
+    expect(s.throwProgress, isNull);
+    expect(s.aimPose, lessThan(0.3));
+    stepFor(World3DSim.aimBlendTime);
+    expect(s.aimPose, 1);
+    s.aiming = false;
+    stepFor(World3DSim.aimBlendTime + 1 / 60);
+    expect(s.aimPose, 0);
+  });
+
+  group('tension', () {
+    /// Lanza a uno a 9 m (la cámara de captura se acerca) y espera a que
+    /// la bola esté en el suelo sacudiéndose.
+    ThrownBall throwAt(World3DSim s, {required int captureRate}) {
+      addWild(
+        s,
+        s.player.position + Vector3(9, 0, 0),
+        captureRate: captureRate,
+      );
+      step(s, 0.1);
+      s.throwBall(PokeBallType.poke);
+      var guard = 0;
+      while (s.balls.isEmpty || s.balls.single.phase != BallPhase.shaking) {
+        s.update(1 / 60);
+        expect(++guard, lessThan(400));
+      }
+      return s.balls.single;
+    }
+
+    test('a hard capture: the last shake goes in slow motion with a '
+        'heartbeat, and the result breaks it before it sounds', () {
+      final events = <World3DEvent>[];
+      final s = world(events: events);
+      final ball = throwAt(s, captureRate: 3);
+      expect(ball.result!.chance, lessThan(ThrownBall.tenseChance));
+      expect(ball.result!.shakes, 3);
+      var slowest = 1.0;
+      var tenseBeforeThird = false;
+      while (ball.phase == BallPhase.shaking) {
+        s.update(1 / 60);
+        if (ball.shakesStarted < 3 && s.isTense) tenseBeforeThird = true;
+        slowest = min(slowest, s.timeScale);
+      }
+      expect(tenseBeforeThird, isFalse);
+      expect(slowest, World3DSim.tenseTimeScale);
+      expect(events.whereType<TensionBeat>().length, greaterThanOrEqualTo(3));
+      final ended = events.indexWhere((e) => e is TensionEnded);
+      final caught = events.indexWhere((e) => e is PokemonCaught);
+      expect(ended, isNot(-1));
+      expect(ended, lessThan(caught));
+      expect(events.whereType<TensionEnded>(), hasLength(1));
+      // Y vuelve a su ritmo enseguida.
+      step(s, 0.3);
+      expect(s.isTense, isFalse);
+      expect(s.timeScale, 1);
+    });
+
+    test('an easy capture has no tension', () {
+      final events = <World3DEvent>[];
+      final s = world(events: events);
+      final ball = throwAt(s, captureRate: 255);
+      expect(ball.result!.chance, greaterThanOrEqualTo(ThrownBall.tenseChance));
+      while (ball.phase == BallPhase.shaking) {
+        s.update(1 / 60);
+        expect(s.timeScale, 1);
+      }
+      expect(events.whereType<TensionBeat>(), isEmpty);
+    });
+
+    test('taking control (moving) ends the slow motion at once', () {
+      final events = <World3DEvent>[];
+      final s = world(events: events);
+      final ball = throwAt(s, captureRate: 3);
+      while (!s.isTense) {
+        s.update(1 / 60);
+        expect(ball.phase, BallPhase.shaking);
+      }
+      s.input.setKeyboardDirection(Vector2(0, -1));
+      step(s, 0.3);
+      expect(s.isTense, isFalse);
+      expect(s.timeScale, 1);
+      expect(events.whereType<TensionEnded>(), hasLength(1));
+    });
+  });
+}

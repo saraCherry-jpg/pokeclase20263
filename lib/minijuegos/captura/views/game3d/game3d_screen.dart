@@ -1,0 +1,593 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import '../../controllers/capture/capture_calculator.dart';
+import '../../controllers/field_controller.dart';
+import '../../controllers/game_controller.dart';
+import '../../controllers/safari_controller.dart';
+import '../../controllers/sound_director.dart';
+import '../../controllers/trainer_controller.dart';
+import '../../game/input/movement_input.dart';
+import '../../game/map/map_layout.dart';
+import '../../game/map/world_map.dart';
+import '../../game3d/render/scene_renderer.dart';
+import '../../game3d/sim/camera_input.dart';
+import '../../game3d/sim/world3d_sim.dart';
+
+import '../../models/poke_ball.dart';
+import '../../services/sound/sound_service.dart';
+import '../game/widgets/d_pad.dart';
+import '../game/widgets/encounter_overlay.dart';
+import 'widgets/action_panel.dart';
+import 'widgets/big_map.dart';
+import 'widgets/capture_card.dart';
+import 'widgets/controls_help.dart';
+import 'widgets/field_hud.dart';
+import 'widgets/minimap.dart';
+import 'widgets/safari_panels.dart';
+import 'widgets/world_overlay.dart';
+
+/// VISTA: exploración en 3D (tercera persona) y captura con Poké Balls.
+///
+/// Crea la simulación una sola vez y hace de PUENTE con los controladores:
+///  - [GameController] (encuentros, igual que en 2D): tocar un Pokémon
+///    agresivo pausa el mundo hasta que termina el encuentro.
+///  - [FieldController] (captura): lo que pasa en el mundo (recoger bolas,
+///    capturas...) va a la bolsa; y al lanzar se saca una bola de ella.
+///  - [SafariController] (el reto opcional): al empezarlo, la simulación
+///    pone sus reglas y las bolas salen del reto, no de la bolsa.
+/// Además traduce teclado, ratón, D-pad y botones a las "intenciones" de
+/// la simulación. El dibujo lo hace el [SceneRenderer] que llega por
+/// provider.
+class Game3DScreen extends StatefulWidget {
+  const Game3DScreen({super.key});
+
+  @override
+  State<Game3DScreen> createState() => _Game3DScreenState();
+}
+
+class _Game3DScreenState extends State<Game3DScreen> {
+  late final GameController _controller;
+  late final FieldController _field;
+  late final TrainerController _trainer;
+  late final SafariController _safari;
+  late final World3DSim _sim;
+  late final SoundService _sound;
+  late final SoundDirector _director;
+  late final StreamSubscription<String> _consumedSub;
+
+  // Apuntar se puede pedir a la vez con el ratón, la tecla y el botón.
+  bool _aimMouse = false;
+  bool _aimKey = false;
+  bool _aimButton = false;
+
+  // Hay un panel abierto ("Mis capturas" o el mapa): el mundo, congelado.
+  bool _panelOpen = false;
+
+  // La ayuda de controles está abierta (se pliega sola al rato; H la cambia).
+  final _helpOpen = ValueNotifier<bool>(true);
+
+  // Para distinguir un clic (lanzar) de un arrastre (girar la cámara).
+  int _buttons = 0;
+  double _dragDistance = 0;
+  Duration _primaryAt = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = context.read<GameController>();
+    _field = context.read<FieldController>();
+    _trainer = context.read<TrainerController>();
+    _safari = context.read<SafariController>();
+    _sound = context.read<SoundService>();
+    _director = SoundDirector(_sound, clock: () => _sim.time);
+    // Igual que en 2D: si se creara en build(), cada repintado reiniciaría.
+    _sim = World3DSim(
+      layout: MapLayout.parse(worldMapRows),
+      spawnWild: _field.pickWildSpawn,
+      // unawaited: el mundo no espera; sigue dibujándose durante el encuentro.
+      onWildContact: (wild) =>
+          unawaited(_controller.onWildEncounter(wild.id, wild.pokemon)),
+      onGrassEncounter: () => unawaited(_controller.onGrassEncounter()),
+      onEvent: _onWorldEvent,
+    );
+    _controller.addListener(_syncPause);
+    _consumedSub = _controller.smokeConsumed.listen(_sim.removeWild);
+    _trainer.addListener(_syncTrainer);
+    _safari.addListener(_onSafariChanged);
+    _syncTrainer();
+    // En web, el clic derecho es para apuntar, no para el menú del navegador.
+    if (kIsWeb) unawaited(BrowserContextMenu.disableContextMenu());
+  }
+
+  /// Lo que pasa en el mundo: a la bolsa y los avisos, y a los sonidos.
+  void _onWorldEvent(World3DEvent event) {
+    _field.onWorldEvent(event);
+    _safari.onWorldEvent(event);
+    _director.onWorldEvent(event);
+  }
+
+  /// Empieza el Reto Safari si el jugador lo acepta (y no hay bolas en el
+  /// aire: el reto cuenta las suyas).
+  Future<void> _startSafari() async {
+    if (_safari.phase != SafariPhase.off) return;
+    final go = await _openPanel<bool>((_) => const SafariIntroDialog());
+    if (go != true || !mounted || _sim.balls.isNotEmpty || !_sim.canThrow) {
+      return;
+    }
+    _safari.start();
+    _sim.startSafari(SafariController.duration);
+  }
+
+  /// El reto cambió: bolas en la mano y, si terminó, resumen.
+  void _onSafariChanged() {
+    _syncTrainer();
+    if (_safari.phase == SafariPhase.finished && _sim.safariActive) {
+      _sim.endSafari();
+      unawaited(_showSafariSummary());
+    }
+    setState(() {});
+  }
+
+  Future<void> _showSafariSummary() async {
+    await _openPanel<void>((_) => SafariSummaryDialog(safari: _safari));
+    _safari.close();
+  }
+
+  /// Silenciar / volver a oír.
+  void _toggleSound() => setState(() => _sound.muted = !_sound.muted);
+
+  void _syncPause() => _sim.setPaused(_controller.isPaused || _panelOpen);
+
+  /// Lo que la simulación necesita del entrenador: lo que lleva en la mano
+  /// (la bola, con la que se calcula la probabilidad, o una baya) y la
+  /// probabilidad de captura crítica, que crece con las especies
+  /// capturadas. En el Reto Safari, la bola es la del reto.
+  void _syncTrainer() {
+    final PokeBallType? ball;
+    if (_safari.isRunning) {
+      ball = _safari.ballsLeft > 0 ? SafariController.ball : null;
+    } else {
+      ball = _trainer.count(_trainer.selected) > 0 ? _trainer.selected : null;
+    }
+    _sim
+      ..readyBall = ball
+      ..berryReady = _trainer.berrySelected && _trainer.berries > 0
+      ..criticalChance = CaptureCalculator.criticalChanceFor(
+        _trainer.speciesCaught,
+      );
+  }
+
+  void _syncAim() => _sim.aiming = _aimMouse || _aimKey || _aimButton;
+
+  /// Tecla de acción: leer (o cerrar) el cartel de delante o sacudir el
+  /// arbusto.
+  void _act() => _sim.act();
+
+  /// Agacharse / levantarse (sigilo).
+  void _toggleCrouch() => setState(() => _sim.crouching = !_sim.crouching);
+
+  /// Abre "Mis capturas".
+  Future<void> _showCaptures() =>
+      _openPanel((_) => CapturesPanel(trainer: _trainer));
+
+  /// Abre el mapa grande.
+  Future<void> _showMap() => _openPanel((_) => BigMapPanel(sim: _sim));
+
+  /// Abre un panel encima del juego. El mundo se congela mientras está
+  /// abierto (y se sueltan las teclas: el panel se queda con el teclado).
+  /// Devuelve lo que devuelva el panel al cerrarse.
+  Future<T?> _openPanel<T>(WidgetBuilder builder) async {
+    if (_panelOpen) return null;
+    _panelOpen = true;
+    _aimKey = false;
+    _aimMouse = false;
+    _syncAim();
+    _sim
+      ..setPaused(true)
+      ..cameraInput.clear();
+    final result = await showDialog<T>(context: context, builder: builder);
+    _panelOpen = false;
+    if (mounted) _syncPause();
+    return result;
+  }
+
+  /// Lanzar: saca de la bolsa lo que lleva en la mano (una bola o una
+  /// baya, si quedan) y la simulación lo lanza. En el Reto Safari las
+  /// bolas salen del reto.
+  void _throw() {
+    if (!_sim.canThrow) return;
+    if (_trainer.berrySelected) {
+      if (_field.takeBerryToThrow()) _sim.throwBerry();
+      return;
+    }
+    final ball = _safari.isRunning
+        ? _safari.takeBall()
+        : _field.takeBallToThrow();
+    if (ball != null) _sim.throwBall(ball);
+  }
+
+  /// Llevar la bola en la mano (en vez de la baya). En el Safari solo hay
+  /// una clase de bola: la del reto.
+  void _holdBall(PokeBallType type) {
+    if (_safari.isRunning) {
+      _trainer.select(_trainer.selected);
+    } else if (_trainer.count(type) > 0) {
+      _trainer.select(type);
+    }
+  }
+
+  /// R: lo siguiente de la bolsa (en el Safari, bola ↔ baya).
+  void _selectNext() {
+    if (!_safari.isRunning) {
+      _trainer.selectNext();
+    } else if (_trainer.berrySelected) {
+      _trainer.select(_trainer.selected);
+    } else {
+      _trainer.selectBerry();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_syncPause);
+    _trainer.removeListener(_syncTrainer);
+    _safari.removeListener(_onSafariChanged);
+    unawaited(_consumedSub.cancel());
+    _sim.dispose();
+    _helpOpen.dispose();
+    if (kIsWeb) unawaited(BrowserContextMenu.enableContextMenu());
+    super.dispose();
+  }
+
+  /// Teclas → movimiento, cámara y captura. El movimiento se recalcula con
+  /// TODAS las teclas pulsadas, así soltar una no deja otra "pegada".
+  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
+    final key = event.logicalKey;
+    final down = event is KeyDownEvent;
+    if (key == LogicalKeyboardKey.keyF) {
+      _aimKey = event is! KeyUpEvent;
+      _syncAim();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.space) {
+      if (down) _throw();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyC ||
+        key == LogicalKeyboardKey.controlLeft ||
+        key == LogicalKeyboardKey.controlRight) {
+      if (down) _toggleCrouch();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyX) {
+      if (down) _sim.roll();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyV) {
+      if (down) _sim.recenterCamera();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyL || key == LogicalKeyboardKey.enter) {
+      if (down) _act();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyP) {
+      if (down) unawaited(_showCaptures());
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyM) {
+      if (down) unawaited(_showMap());
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyN) {
+      if (down) _toggleSound();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyH) {
+      if (down) _helpOpen.value = !_helpOpen.value;
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyR) {
+      if (down) _selectNext();
+      return KeyEventResult.handled;
+    }
+    final slot = _ballKeys.indexOf(key);
+    if (slot >= 0) {
+      if (down) _holdBall(PokeBallType.values[slot]);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.digit4) {
+      if (down) _trainer.selectBerry();
+      return KeyEventResult.handled;
+    }
+    if (!MovementInput.isMovementKey(key) && !CameraInput.isCameraKey(key)) {
+      return KeyEventResult.ignored;
+    }
+    final pressed = HardwareKeyboard.instance.logicalKeysPressed;
+    _sim.input.setKeyboardDirection(MovementInput.directionFromKeys(pressed));
+    _sim.cameraInput.updateFromKeys(pressed);
+    return KeyEventResult.handled;
+  }
+
+  static const _ballKeys = [
+    LogicalKeyboardKey.digit1,
+    LogicalKeyboardKey.digit2,
+    LogicalKeyboardKey.digit3,
+  ];
+
+  // Ratón: arrastrar con cualquier botón gira la cámara; clic derecho
+  // mantenido = apuntar; clic izquierdo (sin arrastrar) = lanzar.
+  //
+  // Ojo: el ratón es UN solo puntero. Si ya hay un botón pulsado, pulsar
+  // otro no crea un "down" nuevo: solo cambian los botones de los eventos
+  // de movimiento. Por eso se miran las TRANSICIONES de los botones.
+  void _onButtons(PointerEvent event) {
+    final cancelled = event is PointerCancelEvent;
+    final buttons = event is PointerUpEvent || cancelled ? 0 : event.buttons;
+    final pressed = buttons & ~_buttons;
+    final released = _buttons & ~buttons;
+    _buttons = buttons;
+    if (pressed & kPrimaryButton != 0) {
+      _primaryAt = event.timeStamp;
+      _dragDistance = 0;
+    }
+    // Con el ratón, un clic lanza; en pantallas táctiles se usa el botón.
+    if (released & kPrimaryButton != 0 &&
+        !cancelled &&
+        event.kind == PointerDeviceKind.mouse &&
+        event.timeStamp - _primaryAt < _clickTime &&
+        _dragDistance < 8) {
+      _throw();
+    }
+    final aim = buttons & kSecondaryMouseButton != 0;
+    if (aim != _aimMouse) {
+      _aimMouse = aim;
+      _syncAim();
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    _onButtons(event);
+    if (event.buttons == 0) return;
+    _dragDistance += event.delta.distance;
+    _sim.cameraInput.addDrag(event.delta.dx, event.delta.dy);
+  }
+
+  static const _clickTime = Duration(milliseconds: 350);
+
+  @override
+  Widget build(BuildContext context) {
+    final renderer = context.read<SceneRenderer>();
+    final controller = context.watch<GameController>();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Captura')),
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: _onKey,
+        child: Stack(
+          children: [
+            Listener(
+              onPointerDown: _onButtons,
+              onPointerMove: _onPointerMove,
+              onPointerUp: _onButtons,
+              onPointerCancel: _onButtons,
+              onPointerSignal: (event) {
+                if (event is PointerScrollEvent) {
+                  _sim.cameraInput.addZoom(event.scrollDelta.dy * 0.01);
+                }
+              },
+              child: renderer.buildView(_sim),
+            ),
+            Positioned.fill(
+              child: WorldOverlay(sim: _sim, isCaught: _trainer.hasCaught),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 64,
+              child: Center(
+                child: ActionPanel(sim: _sim, onAction: _act),
+              ),
+            ),
+            Positioned(
+              left: 16,
+              bottom: 16,
+              child: DPad(
+                key: const Key('game3d_dpad'),
+                onDirectionChanged: _sim.input.setPadDirection,
+              ),
+            ),
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: ListenableBuilder(
+                listenable: _trainer,
+                builder: (_, _) => _ThrowButtons(
+                  ball: _trainer.selected,
+                  berry: _trainer.berrySelected,
+                  aiming: _aimButton,
+                  crouching: _sim.crouching,
+                  onRecenter: _sim.recenterCamera,
+                  onCrouch: _toggleCrouch,
+                  onRoll: () => _sim.roll(),
+                  onAim: () {
+                    setState(() => _aimButton = !_aimButton);
+                    _syncAim();
+                  },
+                  onThrow: _throw,
+                ),
+              ),
+            ),
+            Positioned(
+              right: 16,
+              top: 16,
+              child: Minimap(
+                key: const Key('game3d_minimap'),
+                sim: _sim,
+                onTap: () => unawaited(_showMap()),
+              ),
+            ),
+            Positioned(
+              right: 16,
+              top: 174,
+              child: IconButton.filled(
+                key: const Key('game3d_sound'),
+                tooltip: _sound.muted
+                    ? 'Activar el sonido (N)'
+                    : 'Silenciar (N)',
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black54,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: _toggleSound,
+                icon: Icon(_sound.muted ? Icons.volume_off : Icons.volume_up),
+              ),
+            ),
+            // El Reto Safari se empieza aquí (en el modo libre).
+            if (_safari.phase == SafariPhase.off)
+              Positioned(
+                right: 16,
+                top: 230,
+                child: SafariStartButton(
+                  onPressed: () => unawaited(_startSafari()),
+                ),
+              ),
+            Positioned(
+              left: 16,
+              top: 16,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ListenableBuilder(
+                    listenable: Listenable.merge([_trainer, _safari]),
+                    builder: (_, _) => _safari.isRunning
+                        ? SafariHud(
+                            sim: _sim,
+                            safari: _safari,
+                            trainer: _trainer,
+                            onAbandon: _safari.abandon,
+                          )
+                        : BagBar(
+                            trainer: _trainer,
+                            onShowCaptures: () => unawaited(_showCaptures()),
+                          ),
+                  ),
+                  const SizedBox(height: 8),
+                  ControlsHelp(open: _helpOpen),
+                ],
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 16,
+              child: IgnorePointer(
+                child: ListenableBuilder(
+                  listenable: _field,
+                  builder: (_, _) => NoticeStack(field: _field),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: EncounterOverlay(
+                controller: controller,
+                loadingMessage: '¡Algo se mueve entre la hierba…!',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Botones táctiles: cámara detrás del jugador, agacharse y apuntar (se
+/// quedan activos) y lanzar la bola elegida.
+class _ThrowButtons extends StatelessWidget {
+  const _ThrowButtons({
+    required this.ball,
+    required this.berry,
+    required this.aiming,
+    required this.crouching,
+    required this.onRecenter,
+    required this.onCrouch,
+    required this.onRoll,
+    required this.onAim,
+    required this.onThrow,
+  });
+
+  final PokeBallType ball;
+
+  /// Lleva una baya en la mano (el botón de lanzar la enseña).
+  final bool berry;
+  final bool aiming;
+  final bool crouching;
+  final VoidCallback onRecenter;
+  final VoidCallback onCrouch;
+  final VoidCallback onRoll;
+  final VoidCallback onAim;
+  final VoidCallback onThrow;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        FloatingActionButton.small(
+          key: const Key('game3d_recenter'),
+          heroTag: null,
+          tooltip: 'Cámara detrás (V)',
+          backgroundColor: Colors.black54,
+          foregroundColor: Colors.white,
+          onPressed: onRecenter,
+          child: const Icon(Icons.cameraswitch),
+        ),
+        const SizedBox(width: 8),
+        FloatingActionButton.small(
+          key: const Key('game3d_crouch'),
+          heroTag: null,
+          tooltip: 'Agacharse (C / Ctrl)',
+          backgroundColor: crouching ? Colors.greenAccent : Colors.black54,
+          foregroundColor: crouching ? Colors.black : Colors.white,
+          onPressed: onCrouch,
+          child: const Icon(Icons.accessibility_new),
+        ),
+        const SizedBox(width: 8),
+        FloatingActionButton.small(
+          key: const Key('game3d_roll'),
+          heroTag: null,
+          tooltip: 'Rodar (X)',
+          backgroundColor: Colors.black54,
+          foregroundColor: Colors.white,
+          onPressed: onRoll,
+          child: const Icon(Icons.sports_gymnastics),
+        ),
+        const SizedBox(width: 8),
+        FloatingActionButton.small(
+          key: const Key('game3d_aim'),
+          heroTag: null,
+          tooltip: 'Apuntar (clic derecho / F)',
+          backgroundColor: aiming ? Colors.amber : Colors.black54,
+          foregroundColor: aiming ? Colors.black : Colors.white,
+          onPressed: onAim,
+          child: const Icon(Icons.center_focus_strong),
+        ),
+        const SizedBox(width: 12),
+        FloatingActionButton.large(
+          key: const Key('game3d_throw'),
+          heroTag: null,
+          tooltip: 'Lanzar (clic / Espacio)',
+          backgroundColor: Colors.black54,
+          onPressed: onThrow,
+          child: berry ? const BerryIcon(size: 44) : BallIcon(ball, size: 44),
+        ),
+      ],
+    );
+  }
+}

@@ -32,6 +32,13 @@ dependencies:
   http: ^1.6.0
   audioplayers: ^6.8.1
 
+  # Captura (juego 3D)
+  flame: ^1.38.2
+  flutter_scene: ^0.23.0
+  vector_math: ^2.4.3
+  hooks: ^2.2.0
+  web: ^1.1.1
+
   flutter:
     sdk: flutter
 
