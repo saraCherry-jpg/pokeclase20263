@@ -9,6 +9,7 @@ d) Centro Pokemon
  */
 
 import 'package:flutter/material.dart';
+import 'package:pokeclase20263/minijuegos/batalla/batalla_screen.dart';
 import 'package:pokeclase20263/screens/tamagotchi_screen.dart';
 import 'package:pokeclase20263/widgets/menu_card.dart';
 
@@ -78,7 +79,7 @@ class MinijuegoScreen extends StatelessWidget {
                 icono: Icons.flash_on_rounded,
                 titulo: 'Batalla',
                 subtitulo: 'Enfrenta a otros entrenadores',
-                onTap: () => _ir(context, 'Batalla', Icons.flash_on_rounded) //Modificar
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BatallaScreen())) //Minijuego de batalla
               ),
 
               // _______________ OPCION 3: Tamagotchi ________________
