@@ -12,6 +12,9 @@ import 'package:flutter/material.dart';
 import 'package:pokeclase20263/screens/tamagotchi_screen.dart';
 import 'package:pokeclase20263/widgets/menu_card.dart';
 
+// Captura (juego 3D)
+import 'package:pokeclase20263/minijuegos/captura/captura_screen.dart';
+
 
 //Variables globales
 const _kPrimary = Color(0xFF5345AB);
@@ -67,8 +70,9 @@ class MinijuegoScreen extends StatelessWidget {
                 horizontal: true,
                 icono: Icons.view_in_ar_rounded,
                 titulo: 'Captura',
-                subtitulo: 'Atrapa los pokemones en relidad aumentada',
-                onTap: () => _ir(context, 'Captura', Icons.view_in_ar_rounded)
+                subtitulo: 'Explora la hierba alta en 3D y atrápalos',
+                onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const CapturaScreen())), //Navegación al juego 3D (Captura)
               ),
 
               //_____________ OPCION 2: Batalla __________________

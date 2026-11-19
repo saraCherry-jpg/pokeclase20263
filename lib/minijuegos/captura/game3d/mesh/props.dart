@@ -1,0 +1,527 @@
+import 'dart:math' as math;
+
+import 'package:vector_math/vector_math.dart';
+
+import '../../game/map/map_layout.dart';
+import '../sim/berries.dart' show bushLeafBalls;
+import '../sim/cell_noise.dart';
+import '../sim/trees.dart';
+import 'mesh_builder.dart';
+
+export '../sim/cell_noise.dart' show cellNoise;
+
+/// Paleta del mundo (sRGB → lineal). Colores vivos, estilo Pokémon.
+abstract final class Palette {
+  static final trunk = srgb(0x7A5234);
+  static final trunkDark = srgb(0x5E3E27);
+  static final leaf = srgb(0x3FA34D);
+  static final leafLight = srgb(0x5DBB4F);
+  static final pine = srgb(0x2E7D4F);
+  static final pineDark = srgb(0x23633E);
+  static final autumn = srgb(0xE0762F);
+  static final autumnLight = srgb(0xF2A13B);
+  static final bush = srgb(0x2F8F3F);
+  static final berry = srgb(0xD8384A);
+  static final wood = srgb(0xC89B63);
+  static final woodDark = srgb(0x8E6639);
+  static final wall = srgb(0xF4EBDD);
+  static final wallShade = srgb(0xE3D6C2);
+  static final roofRed = srgb(0xD8453C);
+  static final roofBlue = srgb(0x3A74C9);
+  static final roofGreen = srgb(0x3C9A5B);
+  static final door = srgb(0x8A5A34);
+  static final window = srgb(0x9ED8F0);
+  static final chimney = srgb(0xA9A39A);
+  static final stone = srgb(0xC9C4BA);
+  static final mushroomCap = srgb(0xE5413B);
+  static final mushroomStem = srgb(0xF6EFE0);
+  static final signBoard = srgb(0xD9B37C);
+  static final flowerColors = [
+    srgb(0xFFFFFF),
+    srgb(0xFFD84D),
+    srgb(0xFF7FB0),
+    srgb(0xB88CFF),
+  ];
+}
+
+/// Casa del mapa: rectángulo de casillas `H` contiguas.
+typedef HouseBlock = ({int col, int row, int width, int height});
+
+/// Busca los bloques de casas (cada `H` pertenece a un solo bloque).
+/// Un bloque empieza en una `H` sin `H` a su izquierda ni encima.
+List<HouseBlock> findHouseBlocks(MapLayout layout) {
+  bool isHouse(int c, int r) => layout.tileAt(c, r) == TileKind.house;
+  final blocks = <HouseBlock>[];
+  for (var row = 0; row < layout.rows; row++) {
+    for (var col = 0; col < layout.columns; col++) {
+      if (!isHouse(col, row) ||
+          isHouse(col - 1, row) ||
+          isHouse(col, row - 1)) {
+        continue;
+      }
+      var width = 1;
+      while (isHouse(col + width, row)) {
+        width++;
+      }
+      var height = 1;
+      while (isHouse(col, row + height)) {
+        height++;
+      }
+      blocks.add((col: col, row: row, width: width, height: height));
+    }
+  }
+  return blocks;
+}
+
+/// Construye TODOS los objetos fijos del mapa (árboles, casas, vallas...)
+/// en una sola malla: una única llamada de dibujo para el mundo entero.
+///
+/// Con [bushes] = false se saltan los arbustos: en el juego se dibujan
+/// aparte porque se balancean al sacudirlos. Con [canopies] = false los
+/// árboles se quedan en el tronco: sus copas se mecen con el viento y
+/// también se dibujan aparte (ver [buildCanopy]).
+MeshBuffers buildProps(
+  MapLayout layout,
+  double tile, {
+  bool bushes = true,
+  bool canopies = true,
+}) {
+  final b = MeshBuilder();
+  for (var row = 0; row < layout.rows; row++) {
+    for (var col = 0; col < layout.columns; col++) {
+      final center = Vector3((col + 0.5) * tile, 0, (row + 0.5) * tile);
+      final n = cellNoise(col, row);
+      b.withTransform(
+        Matrix4.translation(center)
+          ..scaleByDouble(tile / 2, tile / 2, tile / 2, 1),
+        () => switch (layout.tileAt(col, row)!) {
+          TileKind.bush => bushes ? addBush(b) : null,
+          TileKind.fence => _addFence(b, layout, col, row),
+          TileKind.sign => addSign(b),
+          TileKind.mushroom => addMushrooms(b, col, row),
+          TileKind.flowers => addFlowers(b, col, row),
+          TileKind.stone => addSteppingStone(b, n),
+          TileKind.grass => addGrassTufts(b, col, row),
+          TileKind.path => addPebbles(b, col, row),
+          _ => null,
+        },
+      );
+    }
+  }
+  final roofs = [Palette.roofRed, Palette.roofBlue, Palette.roofGreen];
+  final houses = findHouseBlocks(layout);
+  for (var i = 0; i < houses.length; i++) {
+    addHouse(b, houses[i], tile, roofs[i % roofs.length]);
+  }
+  // Los árboles del mapa y el bosque que lo rodea (para que no se vea el
+  // vacío del borde), donde los pone la simulación.
+  for (final tree in TreeField.fromLayout(layout, tile).trees) {
+    addTreeAt(b, tree, canopy: canopies);
+  }
+  return b.build();
+}
+
+// Las piezas siguientes se construyen en una casilla "unidad": de -1 a 1
+// en X y Z (el llamador escala al tamaño real de la casilla).
+
+/// Árbol entero en su sitio: tronco y, si [canopy], copa (con el viento
+/// quieto). En el juego la copa va aparte, porque se mece.
+void addTreeAt(MeshBuilder b, Tree tree, {bool canopy = true}) {
+  b.withTransform(
+    Matrix4.translationValues(tree.x, 0, tree.z)
+      ..rotateY(tree.yaw)
+      ..scaleByDouble(tree.size, tree.size * tree.height, tree.size, 1),
+    () {
+      addTrunk(b, tree.kind);
+      if (canopy) {
+        b.withTransform(
+          Matrix4.translationValues(0, Tree.pivotUnit(tree.kind), 0),
+          () => addCanopy(b, tree.kind),
+        );
+      }
+    },
+  );
+}
+
+/// Tronco (alto 1: quien lo coloca lo estira con `Tree.height`). El del
+/// árbol redondo llega hasta dentro de la copa; el del pino es corto.
+void addTrunk(MeshBuilder b, TreeKind kind) {
+  b.prism(
+    base: Vector3.zero(),
+    bottomRadius: kind.isPine ? 0.17 : 0.2,
+    topRadius: kind.isPine ? 0.12 : 0.14,
+    height: kind.isPine ? 0.7 : 1.2,
+    sides: 6,
+    color: kind.isPine ? Palette.trunkDark : Palette.trunk,
+  );
+}
+
+/// Copa con el PIVOTE del vaivén en el origen (lo alto del tronco del
+/// árbol redondo, la base de las ramas del pino; ver `Tree.pivotUnit`):
+/// así se inclina sin despegarse del tronco.
+///
+/// Árbol redondo (y otoñal): tres "bolas" facetadas de hojas. Pino: tres
+/// conos apilados.
+void addCanopy(MeshBuilder b, TreeKind kind) {
+  if (kind.isPine) {
+    for (var i = 0; i < 3; i++) {
+      b.prism(
+        base: Vector3(0, i * 0.75, 0),
+        bottomRadius: 0.95 - i * 0.25,
+        topRadius: 0,
+        height: 1.3,
+        sides: 7,
+        color: i.isEven ? Palette.pine : Palette.pineDark,
+        twist: i * 0.4,
+      );
+    }
+    return;
+  }
+  final autumn = kind == TreeKind.autumn;
+  final dark = autumn ? Palette.autumn : Palette.leaf;
+  final light = autumn ? Palette.autumnLight : Palette.leafLight;
+  b
+    ..gem(Vector3(0, 0.35, 0), Vector3(0.95, 0.8, 0.95), dark)
+    ..gem(Vector3(0.25, 0.95, 0.1), Vector3(0.62, 0.55, 0.62), light)
+    ..gem(Vector3(-0.3, 0.7, -0.25), Vector3(0.5, 0.45, 0.5), light);
+}
+
+/// La copa de un tipo de árbol, sola (casilla unidad, pivote en el origen).
+MeshBuffers buildCanopy(TreeKind kind) {
+  final b = MeshBuilder();
+  addCanopy(b, kind);
+  return b.build();
+}
+
+/// Hoja suelta (las que caen de los árboles): plana en el suelo (plano
+/// XZ), de largo 1 a lo largo de Z (punta hacia +Z) y algo doblada por el
+/// nervio, que va más alto (así la luz la sombrea distinto a cada lado).
+/// Blanca en el nervio y gris en el borde: el color de cada hoja se
+/// multiplica por encima. Tiene las dos caras (se ve al darse la vuelta).
+MeshBuffers buildFallingLeaf() {
+  final stem = Vector3(0, 0, -0.5);
+  final mid = Vector3(0, 0.05, 0);
+  final tip = Vector3(0, 0, 0.5);
+  final vein = Vector4(1, 1, 1, 1);
+  final edge = Vector4(0.72, 0.72, 0.72, 1);
+  final b = MeshBuilder();
+  for (final s in const [-1.0, 1.0]) {
+    final back = Vector3(0.2 * s, -0.02, -0.22);
+    final front = Vector3(0.25 * s, -0.02, 0.12);
+    for (final (p, q, r, cp, cq, cr) in [
+      (stem, mid, back, vein, vein, edge),
+      (back, mid, front, edge, vein, edge),
+      (front, mid, tip, edge, vein, vein),
+    ]) {
+      // Una cara hacia arriba y otra hacia abajo (orden contrario).
+      b
+        ..shadedTriangle(p, q, r, cp, cq, cr)
+        ..shadedTriangle(p, r, q, cp, cr, cq);
+    }
+  }
+  return b.build();
+}
+
+/// Arbusto: racimo de bolas verdes ([bushLeafBalls], la forma que también
+/// usa la simulación). Las bayas NO van aquí: se sacuden y vuelven a
+/// crecer, así que las dibuja aparte el renderer de arbustos.
+void addBush(MeshBuilder b) {
+  for (var i = 0; i < bushLeafBalls.length; i++) {
+    final ball = bushLeafBalls[i];
+    b.gem(
+      Vector3(ball.x, ball.y, ball.z),
+      Vector3(ball.rx, ball.ry, ball.rz),
+      i == 0 ? Palette.bush : Palette.leaf,
+    );
+  }
+}
+
+/// Una baya de radio [radius] (m): roja, facetada, con un rabito de hojas
+/// verde arriba.
+MeshBuffers buildBerry({double radius = 0.12}) {
+  final b = MeshBuilder()
+    ..gem(
+      Vector3(0, 0, 0),
+      Vector3(radius, radius * 0.92, radius),
+      Palette.berry,
+    );
+  for (var i = 0; i < 3; i++) {
+    final a = i * 2 * math.pi / 3;
+    b.gem(
+      Vector3(
+        math.sin(a) * radius * 0.35,
+        radius * 0.9,
+        math.cos(a) * radius * 0.35,
+      ),
+      Vector3(radius * 0.32, radius * 0.12, radius * 0.32),
+      Palette.leafLight,
+      detail: 0,
+    );
+  }
+  return b.build();
+}
+
+/// Valla: postes y dos travesaños; se une con las vallas vecinas.
+void _addFence(MeshBuilder b, MapLayout layout, int col, int row) {
+  bool fenceAt(int c, int r) => layout.tileAt(c, r) == TileKind.fence;
+  addFence(
+    b,
+    left: fenceAt(col - 1, row),
+    right: fenceAt(col + 1, row),
+    up: fenceAt(col, row - 1),
+    down: fenceAt(col, row + 1),
+  );
+}
+
+void addFence(
+  MeshBuilder b, {
+  bool left = false,
+  bool right = false,
+  bool up = false,
+  bool down = false,
+}) {
+  b.box(
+    Vector3(-0.1, 0, -0.1),
+    Vector3(0.1, 0.9, 0.1),
+    Palette.woodDark,
+    topColor: Palette.wood,
+  );
+  final horizontal = left || right || !(up || down);
+  final x0 = left || !right ? -1.0 : 0.0;
+  final x1 = right || !left ? 1.0 : 0.0;
+  final z0 = up || !down ? -1.0 : 0.0;
+  final z1 = down || !up ? 1.0 : 0.0;
+  for (final y in [0.35, 0.7]) {
+    if (horizontal) {
+      b.box(
+        Vector3(x0, y - 0.06, -0.05),
+        Vector3(x1, y + 0.06, 0.05),
+        Palette.wood,
+      );
+    }
+    if (up || down) {
+      b.box(
+        Vector3(-0.05, y - 0.06, z0),
+        Vector3(0.05, y + 0.06, z1),
+        Palette.wood,
+      );
+    }
+  }
+}
+
+/// Cartel de madera.
+void addSign(MeshBuilder b) {
+  b
+    ..box(Vector3(-0.07, 0, -0.07), Vector3(0.07, 0.8, 0.07), Palette.woodDark)
+    ..box(
+      Vector3(-0.6, 0.7, -0.06),
+      Vector3(0.6, 1.3, 0.06),
+      Palette.signBoard,
+      topColor: Palette.wood,
+    );
+}
+
+/// Setas rojas con motas (pisables: solo decoran).
+void addMushrooms(MeshBuilder b, int col, int row) {
+  for (var i = 0; i < 3; i++) {
+    final x = (cellNoise(col, row, i) - 0.5) * 1.3;
+    final z = (cellNoise(col, row, i + 7) - 0.5) * 1.3;
+    final s = 0.6 + cellNoise(col, row, i + 3) * 0.5;
+    b
+      ..prism(
+        base: Vector3(x, 0, z),
+        bottomRadius: 0.07 * s,
+        topRadius: 0.06 * s,
+        height: 0.25 * s,
+        sides: 5,
+        color: Palette.mushroomStem,
+      )
+      ..gem(
+        Vector3(x, 0.27 * s, z),
+        Vector3(0.2, 0.12, 0.2) * s,
+        Palette.mushroomCap,
+        detail: 0,
+      );
+  }
+}
+
+/// Flores sueltas sobre el césped.
+void addFlowers(MeshBuilder b, int col, int row) {
+  for (var i = 0; i < 6; i++) {
+    final x = (cellNoise(col, row, i) - 0.5) * 1.6;
+    final z = (cellNoise(col, row, i + 11) - 0.5) * 1.6;
+    final color =
+        Palette.flowerColors[(cellNoise(col, row, i + 5) *
+                    Palette.flowerColors.length)
+                .floor() %
+            Palette.flowerColors.length];
+    b
+      ..prism(
+        base: Vector3(x, 0, z),
+        bottomRadius: 0.015,
+        topRadius: 0.015,
+        height: 0.18,
+        sides: 3,
+        color: Palette.leaf,
+        bottomCap: false,
+      )
+      ..gem(Vector3(x, 0.2, z), Vector3(0.08, 0.04, 0.08), color, detail: 0);
+  }
+}
+
+/// Colores de las matas bajas: algo distintos del césped para que se vean.
+final _tuftLight = srgb(0x8FD05E);
+final _tuftDark = srgb(0x62B54C);
+
+/// Matas bajas de césped (0 a 2 por casilla, en sitios fijos): rompen la
+/// llanura del suelo sin tapar nada (≤ 35 cm).
+void addGrassTufts(MeshBuilder b, int col, int row) {
+  final tufts = (cellNoise(col, row, 31) * 3).floor();
+  for (var t = 0; t < tufts; t++) {
+    final x = (cellNoise(col, row, 32 + t) - 0.5) * 1.6;
+    final z = (cellNoise(col, row, 36 + t) - 0.5) * 1.6;
+    final color = cellNoise(col, row, 40 + t) > 0.5 ? _tuftLight : _tuftDark;
+    for (var i = 0; i < 5; i++) {
+      final n = cellNoise(col, row, 50 + t * 5 + i);
+      b.withTransform(
+        Matrix4.translation(Vector3(x, 0, z))
+          ..rotateY(i * 2 * math.pi / 5 + n)
+          ..rotateX(0.25 + n * 0.3), // cada hoja se abre hacia fuera
+        () => b.prism(
+          base: Vector3.zero(),
+          bottomRadius: 0.035,
+          topRadius: 0,
+          height: 0.2 + n * 0.12,
+          sides: 3,
+          color: color,
+          bottomCap: false,
+        ),
+      );
+    }
+  }
+}
+
+/// Piedrecitas sueltas en el camino (0 a 2 por casilla).
+void addPebbles(MeshBuilder b, int col, int row) {
+  final pebbles = (cellNoise(col, row, 61) * 3).floor();
+  for (var i = 0; i < pebbles; i++) {
+    final n = cellNoise(col, row, 62 + i);
+    final x = (cellNoise(col, row, 64 + i) - 0.5) * 1.7;
+    final z = (cellNoise(col, row, 66 + i) - 0.5) * 1.7;
+    b.gem(
+      Vector3(x, 0.01, z),
+      Vector3(0.06 + n * 0.06, 0.035, 0.05 + n * 0.05),
+      n > 0.5 ? Palette.stone : Palette.chimney,
+      detail: 0,
+    );
+  }
+}
+
+/// Losa de piedra ligeramente elevada.
+void addSteppingStone(MeshBuilder b, double n) {
+  b.prism(
+    base: Vector3.zero(),
+    bottomRadius: 0.8,
+    topRadius: 0.75,
+    height: 0.05,
+    sides: 7,
+    color: Palette.stone,
+    twist: n * 3,
+  );
+}
+
+/// Casa estilo Pokémon: paredes claras, tejado a dos aguas de color,
+/// puerta y ventanas en la fachada que da al sur (+Z) y una chimenea.
+void addHouse(MeshBuilder b, HouseBlock house, double tile, Vector4 roof) {
+  final x0 = house.col * tile + 0.15;
+  final x1 = (house.col + house.width) * tile - 0.15;
+  final z0 = house.row * tile + 0.15;
+  final z1 = (house.row + house.height) * tile - 0.15;
+  const wallH = 3.0;
+  final roofH = (z1 - z0) * 0.38;
+  final midZ = (z0 + z1) / 2;
+  final midX = (x0 + x1) / 2;
+
+  // Zócalo y paredes.
+  b
+    ..box(
+      Vector3(x0 - 0.1, 0, z0 - 0.1),
+      Vector3(x1 + 0.1, 0.35, z1 + 0.1),
+      Palette.chimney,
+    )
+    ..box(
+      Vector3(x0, 0.35, z0),
+      Vector3(x1, wallH, z1),
+      Palette.wall,
+      topColor: Palette.wallShade,
+    );
+
+  // Tejado a dos aguas (vertiente norte y sur) con un poco de alero.
+  const eave = 0.45;
+  final ra = Vector3(x0 - eave, wallH, z0 - eave);
+  final rb = Vector3(x1 + eave, wallH, z0 - eave);
+  final rc = Vector3(x1 + eave, wallH, z1 + eave);
+  final rd = Vector3(x0 - eave, wallH, z1 + eave);
+  final ridgeL = Vector3(x0 - eave, wallH + roofH, midZ);
+  final ridgeR = Vector3(x1 + eave, wallH + roofH, midZ);
+  final roofDark = roof.clone()..scale(0.7);
+  roofDark.w = 1;
+  b
+    ..quad(rd, rc, ridgeR, ridgeL, roof) // sur
+    ..quad(rb, ra, ridgeL, ridgeR, roofDark) // norte
+    ..triangle(ra, rd, ridgeL, roofDark) // hastial oeste
+    ..triangle(rc, rb, ridgeR, roofDark)
+    // Bajo del alero (para que no se vea hueco desde abajo).
+    ..quad(ra, rb, rc, rd, Palette.wallShade);
+  // Hastiales de pared (triángulos bajo el tejado).
+  b
+    ..triangle(
+      Vector3(x0, wallH, z0),
+      Vector3(x0, wallH, z1),
+      Vector3(x0, wallH + roofH * 0.9, midZ),
+      Palette.wallShade,
+    )
+    ..triangle(
+      Vector3(x1, wallH, z1),
+      Vector3(x1, wallH, z0),
+      Vector3(x1, wallH + roofH * 0.9, midZ),
+      Palette.wallShade,
+    );
+
+  // Puerta con escalón, en el centro de la fachada sur.
+  b
+    ..box(
+      Vector3(midX - 0.55, 0.35, z1),
+      Vector3(midX + 0.55, 2.2, z1 + 0.08),
+      Palette.door,
+    )
+    ..box(
+      Vector3(midX - 0.8, 0, z1),
+      Vector3(midX + 0.8, 0.2, z1 + 0.6),
+      Palette.chimney,
+    );
+
+  // Ventanas a los lados de la puerta (y en las fachadas laterales).
+  for (final wx in [x0 + (midX - x0) * 0.45, x1 - (x1 - midX) * 0.45]) {
+    b
+      ..box(
+        Vector3(wx - 0.55, 1.3, z1),
+        Vector3(wx + 0.55, 2.25, z1 + 0.06),
+        Palette.woodDark,
+      )
+      ..box(
+        Vector3(wx - 0.45, 1.4, z1 + 0.02),
+        Vector3(wx + 0.45, 2.15, z1 + 0.08),
+        Palette.window,
+      );
+  }
+
+  // Chimenea.
+  final cx = x1 - (x1 - x0) * 0.22;
+  b.box(
+    Vector3(cx - 0.35, wallH, midZ - 1.2),
+    Vector3(cx + 0.35, wallH + roofH + 0.8, midZ - 0.5),
+    Palette.chimney,
+    topColor: Palette.trunkDark,
+  );
+}

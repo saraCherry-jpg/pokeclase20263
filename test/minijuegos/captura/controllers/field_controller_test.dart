@@ -1,0 +1,230 @@
+// PRUEBAS del controlador del campo 3D: recoger bolas llena la bolsa, una
+// captura se apunta en el entrenador, cada suceso deja su aviso (como mucho
+// tres a la vez; también cuando un Pokémon sale de la hierba) y sin bolas no
+// se lanza nada. Las bayas recogidas van a la bolsa (varias seguidas, un
+// solo aviso) y sacudir un arbusto vacío avisa.
+
+import 'dart:math';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pokeclase20263/minijuegos/captura/controllers/field_controller.dart';
+import 'package:pokeclase20263/minijuegos/captura/controllers/trainer_controller.dart';
+import 'package:pokeclase20263/minijuegos/captura/game3d/sim/wild_pokemon.dart';
+import 'package:pokeclase20263/minijuegos/captura/game3d/sim/world3d_events.dart';
+import 'package:pokeclase20263/minijuegos/captura/models/capture_result.dart';
+import 'package:pokeclase20263/minijuegos/captura/models/poke_ball.dart';
+import 'package:pokeclase20263/minijuegos/captura/services/poke_api_exception.dart';
+import 'package:pokeclase20263/minijuegos/captura/services/random_pokemon_picker.dart';
+import 'package:vector_math/vector_math.dart';
+
+import '../fakes/fake_pokemon_repository.dart';
+
+void main() {
+  late FakePokemonRepository repository;
+  setUp(() => repository = FakePokemonRepository(speciesCount: 30));
+
+  FieldController newField(TrainerController trainer) => FieldController(
+    trainer: trainer,
+    picker: RandomPokemonPicker(repository: repository, random: Random(4)),
+    repository: repository,
+  );
+
+  WildPokemon wild(int id) => WildPokemon(
+    id: 'w$id',
+    pokemon: fakePokemon(id),
+    position: Vector3.zero(),
+  );
+
+  const escaped = CaptureResult(chance: 0.3, shakes: 2, caught: false);
+  const caught = CaptureResult(chance: 0.3, shakes: 3, caught: true);
+
+  test('picking up balls fills the bag and posts a notice', () {
+    final trainer = TrainerController(startingBag: const {});
+    final field = newField(trainer)
+      ..onWorldEvent(const BallsPickedUp(PokeBallType.great, 2));
+
+    expect(trainer.count(PokeBallType.great), 2);
+    expect(trainer.selected, PokeBallType.great);
+    final notice = field.notices.single;
+    expect(notice.kind, FieldNoticeKind.pickedUp);
+    expect(notice.ball, PokeBallType.great);
+    expect(notice.count, 2);
+  });
+
+  test('a capture is registered in the trainer; an escape is not', () {
+    final trainer = TrainerController();
+    final field = newField(trainer)
+      ..onWorldEvent(PokemonBrokeFree(wild(4), PokeBallType.poke, escaped))
+      ..onWorldEvent(PokemonCaught(wild(7), PokeBallType.ultra, caught));
+
+    expect(trainer.captured.single.pokemon.id, 7);
+    expect(trainer.captured.single.ball, PokeBallType.ultra);
+    expect(field.notices.map((n) => n.kind), [
+      FieldNoticeKind.brokeFree,
+      FieldNoticeKind.caught,
+    ]);
+    expect(field.notices.first.shakes, 2);
+  });
+
+  test('a capture says whether the species is new for the trainer', () {
+    final trainer = TrainerController();
+    final field = newField(trainer)
+      ..onWorldEvent(PokemonCaught(wild(7), PokeBallType.poke, caught))
+      ..onWorldEvent(PokemonCaught(wild(7), PokeBallType.great, caught))
+      ..onWorldEvent(PokemonCaught(wild(9), PokeBallType.poke, caught));
+
+    expect(field.notices.map((n) => n.isNew), [true, false, true]);
+    expect(trainer.captured, hasLength(3));
+  });
+
+  test('a critical capture is flagged in its notice', () {
+    const critical = CaptureResult(
+      chance: 0.3,
+      shakes: 1,
+      caught: true,
+      critical: true,
+    );
+    final field = newField(TrainerController())
+      ..onWorldEvent(PokemonCaught(wild(3), PokeBallType.poke, critical))
+      ..onWorldEvent(PokemonCaught(wild(4), PokeBallType.poke, caught));
+    expect(field.notices.map((n) => n.critical), [true, false]);
+  });
+
+  test('a Pokémon coming out of the grass says how it came out', () {
+    final field = newField(TrainerController())
+      ..onWorldEvent(PokemonRevealed(wild(5), startled: true))
+      ..onWorldEvent(PokemonRevealed(wild(6), startled: false));
+    expect(field.notices.map((n) => n.kind), [
+      FieldNoticeKind.burstOut,
+      FieldNoticeKind.peeked,
+    ]);
+    expect(field.notices.map((n) => n.pokemon?.id), [5, 6]);
+  });
+
+  test('berries go to the bag; pickups in a row add up in one notice', () {
+    final trainer = TrainerController();
+    final field = newField(trainer)
+      ..onWorldEvent(const BerriesPickedUp(1))
+      ..onWorldEvent(const BerriesPickedUp(2));
+    expect(trainer.berries, 3);
+    final notice = field.notices.single;
+    expect(notice.kind, FieldNoticeKind.berriesPickedUp);
+    expect(notice.count, 3);
+
+    // Si entre medias pasa otra cosa, ya es otro aviso.
+    field
+      ..onWorldEvent(const BallMissed(PokeBallType.poke))
+      ..onWorldEvent(const BerriesPickedUp(1));
+    expect(field.notices.map((n) => n.count), [3, 0, 1]);
+    expect(trainer.berries, 4);
+  });
+
+  test('shaking an empty bush warns; one with berries says nothing yet', () {
+    final field = newField(TrainerController())
+      ..onWorldEvent(const BushShaken(3));
+    expect(field.notices, isEmpty);
+    field.onWorldEvent(const BushShaken(0));
+    expect(field.notices.single.kind, FieldNoticeKind.emptyBush);
+  });
+
+  test('a Pokémon that starts eating a berry posts a notice', () {
+    final field = newField(TrainerController())
+      ..onWorldEvent(PokemonEating(wild(12)));
+    final notice = field.notices.single;
+    expect(notice.kind, FieldNoticeKind.eating);
+    expect(notice.pokemon?.id, 12);
+  });
+
+  test('only the newest notices are kept; dismiss removes one', () {
+    final field = newField(TrainerController());
+    for (var i = 0; i < 5; i++) {
+      field.onWorldEvent(const BallMissed(PokeBallType.poke));
+    }
+    expect(field.notices, hasLength(FieldController.maxNotices));
+    expect(field.notices.first.id, 2);
+
+    var notified = 0;
+    field
+      ..addListener(() => notified++)
+      ..dismiss(3)
+      ..dismiss(99); // ya no está: no avisa
+    expect(field.notices.map((n) => n.id), [2, 4]);
+    expect(notified, 1);
+  });
+
+  test('taking a ball spends it; with an empty bag it warns', () {
+    final trainer = TrainerController(
+      startingBag: const {PokeBallType.poke: 1},
+    );
+    final field = newField(trainer);
+
+    expect(field.takeBallToThrow(), PokeBallType.poke);
+    expect(field.notices, isEmpty);
+    expect(field.takeBallToThrow(), isNull);
+    expect(field.notices.single.kind, FieldNoticeKind.noBalls);
+  });
+
+  test('taking a berry spends it; with none left it warns', () {
+    final trainer = TrainerController(berries: 1)..selectBerry();
+    final field = newField(trainer);
+
+    expect(field.takeBerryToThrow(), isTrue);
+    expect(trainer.berries, 0);
+    expect(field.notices, isEmpty);
+    expect(field.takeBerryToThrow(), isFalse);
+    expect(field.notices.single.kind, FieldNoticeKind.noBerries);
+  });
+
+  test('wild spawns come with their real capture rate', () async {
+    repository.captureRate = 120;
+    final spawn = (await newField(TrainerController()).pickWildSpawn())!;
+    expect(spawn.captureRate, 120);
+  });
+
+  test('no network: no spawn; only the rate failing: default rate', () async {
+    final f = newField(TrainerController());
+    repository.failNext = const PokeApiNetworkException('offline');
+    expect(await f.pickWildSpawn(), isNull);
+
+    repository.failCaptureRate = true;
+    final spawn = (await f.pickWildSpawn())!;
+    expect(spawn.captureRate, FieldController.fallbackCaptureRate);
+  });
+
+  test('in the Safari, one that flees gets its own notice', () {
+    final field = newField(TrainerController())
+      ..onWorldEvent(
+        PokemonBrokeFree(wild(4), PokeBallType.poke, escaped, fled: true),
+      );
+    expect(field.notices.map((n) => n.kind), [
+      FieldNoticeKind.brokeFree,
+      FieldNoticeKind.fled,
+    ]);
+    expect(field.notices.last.pokemon!.id, 4);
+  });
+
+  test('waking one up posts a notice; waking up alone does not', () {
+    final field = newField(TrainerController())
+      ..onWorldEvent(PokemonWoke(wild(4), startled: false));
+    expect(field.notices, isEmpty);
+    field.onWorldEvent(PokemonWoke(wild(7), startled: true));
+    expect(field.notices.single.kind, FieldNoticeKind.wokeUp);
+    expect(field.notices.single.pokemon!.id, 7);
+  });
+
+  test('one falling from a tree posts a notice; rustling leaves do not', () {
+    final field = newField(TrainerController())
+      ..onWorldEvent(PokemonFellFromTree(wild(9)));
+    expect(field.notices.single.kind, FieldNoticeKind.fellFromTree);
+    expect(field.notices.single.pokemon!.id, 9);
+  });
+
+  test('a herd warned by one of them posts who and how many', () {
+    final field = newField(TrainerController())
+      ..onWorldEvent(HerdAlerted(wild(25), 2));
+    final notice = field.notices.single;
+    expect(notice.kind, FieldNoticeKind.herdAlerted);
+    expect(notice.pokemon!.id, 25);
+    expect(notice.count, 2);
+  });
+}
