@@ -10,6 +10,8 @@ d) Centro Pokemon
 
 import 'package:flutter/material.dart';
 import 'package:pokeclase20263/screens/tamagotchi_screen.dart';
+import 'package:pokeclase20263/snap/game/gallery/gallery_view.dart';
+import 'package:pokeclase20263/snap/views/snap_screen.dart';
 import 'package:pokeclase20263/widgets/menu_card.dart';
 
 
@@ -112,7 +114,29 @@ class MinijuegoScreen extends StatelessWidget {
                 onTap: () => _ir(context, 'Centro Pokemon', Icons.local_hospital_rounded)
               ),
 
+              const SizedBox(height: 16),
+              MenuCard(
+                horizontal: true,
+                icono: Icons.camera,
+                titulo: 'Snap',
+                subtitulo: 'Toma fotos de pokemon salvajes',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => SnapScreen())
+                )
+              ),
 
+              const SizedBox(height: 16),
+              MenuCard(
+                horizontal: true,
+                icono: Icons.photo_album,
+                titulo: 'Album',
+                subtitulo: 'Las fotografias que has tomado',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => GalleryView())
+                )
+              ),
 
             ],
           ),

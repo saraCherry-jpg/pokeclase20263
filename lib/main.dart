@@ -8,9 +8,15 @@ import 'package:pokeclase20263/providers/poke_api_provider.dart';
 import 'package:pokeclase20263/screens/dashboard_screen.dart';
 import 'package:pokeclase20263/screens/generation_list_screen.dart';
 import 'package:pokeclase20263/screens/auth_screen.dart';
+import 'package:pokeclase20263/screens/minijuego_screen.dart';
+import 'package:pokeclase20263/snap/game/gallery/gallery_repository.dart';
 import 'package:provider/provider.dart';
 
-void main() => runApp(const AppState());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await GalleryRepository.instance.init();
+  runApp(const  AppState());
+}
 
 class AppState extends StatelessWidget{
   const AppState({super.key});
@@ -79,7 +85,7 @@ class MyApp extends StatelessWidget{
           foregroundColor: _KDark
         )
       ),
-      home: const AuthScreen(),  //GenerationListScreen(), //llama o instancia una clase (solo era el punto xd) INICIA
+      home: const MinijuegoScreen(),  //GenerationListScreen(), //llama o instancia una clase (solo era el punto xd) INICIA
       routes: {
         '/dashboard':(context) => const DashboardScreen()
       },

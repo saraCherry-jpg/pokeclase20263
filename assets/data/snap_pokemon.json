@@ -1,0 +1,1059 @@
+[
+  {
+    "id": 1,
+    "name": "Bulbasaur",
+    "displayHeight": 204.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 2,
+    "name": "Ivysaur",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 3,
+    "name": "Venusaur",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 4,
+    "name": "Charmander",
+    "displayHeight": 192.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 5,
+    "name": "Charmeleon",
+    "displayHeight": 252.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 6,
+    "name": "Charizard",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 7,
+    "name": "Squirtle",
+    "displayHeight": 180.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 8,
+    "name": "Wartortle",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 9,
+    "name": "Blastoise",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 10,
+    "name": "Caterpie",
+    "displayHeight": 156.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 11,
+    "name": "Metapod",
+    "displayHeight": 204.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 12,
+    "name": "Butterfree",
+    "displayHeight": 252.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 13,
+    "name": "Weedle",
+    "displayHeight": 156.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 14,
+    "name": "Kakuna",
+    "displayHeight": 192.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 15,
+    "name": "Beedrill",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 16,
+    "name": "Pidgey",
+    "displayHeight": 156.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 17,
+    "name": "Pidgeotto",
+    "displayHeight": 252.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 18,
+    "name": "Pidgeot",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 19,
+    "name": "Rattata",
+    "displayHeight": 156.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 20,
+    "name": "Raticate",
+    "displayHeight": 204.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 21,
+    "name": "Spearow",
+    "displayHeight": 156.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 22,
+    "name": "Fearow",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 23,
+    "name": "Ekans",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 24,
+    "name": "Arbok",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 25,
+    "name": "Pikachu",
+    "displayHeight": 168.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 26,
+    "name": "Raichu",
+    "displayHeight": 216.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 27,
+    "name": "Sandshrew",
+    "displayHeight": 192.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 28,
+    "name": "Sandslash",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 29,
+    "name": "Nidoran-f",
+    "displayHeight": 168.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 30,
+    "name": "Nidorina",
+    "displayHeight": 216.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 31,
+    "name": "Nidoqueen",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 32,
+    "name": "Nidoran-m",
+    "displayHeight": 180.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 33,
+    "name": "Nidorino",
+    "displayHeight": 228.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 34,
+    "name": "Nidoking",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 35,
+    "name": "Clefairy",
+    "displayHeight": 192.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 36,
+    "name": "Clefable",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 37,
+    "name": "Vulpix",
+    "displayHeight": 192.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 38,
+    "name": "Ninetales",
+    "displayHeight": 252.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 39,
+    "name": "Jigglypuff",
+    "displayHeight": 180.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 40,
+    "name": "Wigglytuff",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 41,
+    "name": "Zubat",
+    "displayHeight": 216.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 42,
+    "name": "Golbat",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 43,
+    "name": "Oddish",
+    "displayHeight": 180.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 44,
+    "name": "Gloom",
+    "displayHeight": 216.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 45,
+    "name": "Vileplume",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 46,
+    "name": "Paras",
+    "displayHeight": 156.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 47,
+    "name": "Parasect",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 48,
+    "name": "Venonat",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 49,
+    "name": "Venomoth",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 50,
+    "name": "Diglett",
+    "displayHeight": 144.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 51,
+    "name": "Dugtrio",
+    "displayHeight": 204.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 52,
+    "name": "Meowth",
+    "displayHeight": 168.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 53,
+    "name": "Persian",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 54,
+    "name": "Psyduck",
+    "displayHeight": 216.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 55,
+    "name": "Golduck",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 56,
+    "name": "Mankey",
+    "displayHeight": 180.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 57,
+    "name": "Primeape",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 58,
+    "name": "Growlithe",
+    "displayHeight": 204.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 59,
+    "name": "Arcanine",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 60,
+    "name": "Poliwag",
+    "displayHeight": 192.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 61,
+    "name": "Poliwhirl",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 62,
+    "name": "Poliwrath",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 63,
+    "name": "Abra",
+    "displayHeight": 228.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 64,
+    "name": "Kadabra",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 65,
+    "name": "Alakazam",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 66,
+    "name": "Machop",
+    "displayHeight": 216.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 67,
+    "name": "Machoke",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 68,
+    "name": "Machamp",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 69,
+    "name": "Bellsprout",
+    "displayHeight": 204.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 70,
+    "name": "Weepinbell",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 71,
+    "name": "Victreebel",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 72,
+    "name": "Tentacool",
+    "displayHeight": 228.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 73,
+    "name": "Tentacruel",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 74,
+    "name": "Geodude",
+    "displayHeight": 168.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 75,
+    "name": "Graveler",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 76,
+    "name": "Golem",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 77,
+    "name": "Ponyta",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 78,
+    "name": "Rapidash",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 79,
+    "name": "Slowpoke",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 80,
+    "name": "Slowbro",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 81,
+    "name": "Magnemite",
+    "displayHeight": 156.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 82,
+    "name": "Magneton",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 83,
+    "name": "Farfetchd",
+    "displayHeight": 216.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 84,
+    "name": "Doduo",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 85,
+    "name": "Dodrio",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 86,
+    "name": "Seel",
+    "displayHeight": 252.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 87,
+    "name": "Dewgong",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 88,
+    "name": "Grimer",
+    "displayHeight": 228.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 89,
+    "name": "Muk",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 90,
+    "name": "Shellder",
+    "displayHeight": 156.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 91,
+    "name": "Cloyster",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 92,
+    "name": "Gastly",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 93,
+    "name": "Haunter",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 94,
+    "name": "Gengar",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 95,
+    "name": "Onix",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 96,
+    "name": "Drowzee",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 97,
+    "name": "Hypno",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 98,
+    "name": "Krabby",
+    "displayHeight": 168.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 99,
+    "name": "Kingler",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 100,
+    "name": "Voltorb",
+    "displayHeight": 180.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 101,
+    "name": "Electrode",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 102,
+    "name": "Exeggcute",
+    "displayHeight": 168.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 103,
+    "name": "Exeggutor",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 104,
+    "name": "Cubone",
+    "displayHeight": 168.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 105,
+    "name": "Marowak",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 106,
+    "name": "Hitmonlee",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 107,
+    "name": "Hitmonchan",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 108,
+    "name": "Lickitung",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 109,
+    "name": "Koffing",
+    "displayHeight": 192.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 110,
+    "name": "Weezing",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 111,
+    "name": "Rhyhorn",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 112,
+    "name": "Rhydon",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 113,
+    "name": "Chansey",
+    "displayHeight": 252.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 114,
+    "name": "Tangela",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 115,
+    "name": "Kangaskhan",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 116,
+    "name": "Horsea",
+    "displayHeight": 168.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 117,
+    "name": "Seadra",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 118,
+    "name": "Goldeen",
+    "displayHeight": 192.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 119,
+    "name": "Seaking",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 120,
+    "name": "Staryu",
+    "displayHeight": 216.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 121,
+    "name": "Starmie",
+    "displayHeight": 252.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 122,
+    "name": "Mr-mime",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 123,
+    "name": "Scyther",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 124,
+    "name": "Jynx",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 125,
+    "name": "Electabuzz",
+    "displayHeight": 252.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 126,
+    "name": "Magmar",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 127,
+    "name": "Pinsir",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 128,
+    "name": "Tauros",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 129,
+    "name": "Magikarp",
+    "displayHeight": 228.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 130,
+    "name": "Gyarados",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 131,
+    "name": "Lapras",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 132,
+    "name": "Ditto",
+    "displayHeight": 156.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 133,
+    "name": "Eevee",
+    "displayHeight": 156.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 134,
+    "name": "Vaporeon",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 135,
+    "name": "Jolteon",
+    "displayHeight": 216.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 136,
+    "name": "Flareon",
+    "displayHeight": 228.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 137,
+    "name": "Porygon",
+    "displayHeight": 216.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 138,
+    "name": "Omanyte",
+    "displayHeight": 168.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 139,
+    "name": "Omastar",
+    "displayHeight": 240.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 140,
+    "name": "Kabuto",
+    "displayHeight": 180.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 141,
+    "name": "Kabutops",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 142,
+    "name": "Aerodactyl",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 143,
+    "name": "Snorlax",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 144,
+    "name": "Articuno",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 145,
+    "name": "Zapdos",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 146,
+    "name": "Moltres",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 147,
+    "name": "Dratini",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 148,
+    "name": "Dragonair",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 149,
+    "name": "Dragonite",
+    "displayHeight": 260.0,
+    "isFlying": true,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 150,
+    "name": "Mewtwo",
+    "displayHeight": 260.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  },
+  {
+    "id": 151,
+    "name": "Mew",
+    "displayHeight": 168.0,
+    "isFlying": false,
+    "spawnWeight": 1.0
+  }
+]
